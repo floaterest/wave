@@ -33,9 +33,9 @@ impl Chord {
         }
     }
     /// scale all frequencies
-    pub fn scale(&mut self, scale: f64) {
-        self.frequencies.iter_mut().for_each(|f| *f *= scale);
-    }
+    // pub fn scale(&mut self, scale: f64) {
+    //     self.frequencies.iter_mut().for_each(|f| *f *= scale);
+    // }
     pub fn push(&mut self, frequency: f64) {
         self.frequencies.push(frequency);
     }
