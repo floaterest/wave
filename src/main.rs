@@ -23,9 +23,9 @@ fn main() -> Result<()> {
 
     let rate = 12000;
     // maximum 6 notes at a time
-    let amplitude = i16::MAX as f64 / 6.0;
+    let max = 6;
 
-    let mut parser = InputParser::new(File::create(output)?, amplitude, rate);
+    let mut parser = InputParser::new(File::create(output)?, max, rate);
     let reader = BufReader::new(File::open(input)?);
     Ok(parser.write(reader.lines().flatten())?)
 }

@@ -40,6 +40,10 @@ impl Chord {
     pub fn is_empty(&self) -> bool {
         self.frequencies.is_empty()
     }
+    /// returns number of notes `self` has
+    pub fn count(&self) -> usize {
+        self.frequencies.len()
+    }
     /// push a new frequency to chord
     pub fn push(&mut self, frequency: f64) {
         self.frequencies.push(frequency);

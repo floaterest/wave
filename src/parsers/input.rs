@@ -53,13 +53,13 @@ pub struct InputParser {
 }
 
 impl InputParser {
-    pub fn new(output: File, amp: f64, fps: u32) -> Self {
+    pub fn new(output: File, max: usize, fps: u32) -> Self {
         Self {
             wr: Writer::new(output),
             cap: CaptureParser::new(),
             rep: RepeatParser::new(),
             note: NoteParser::new(),
-            wave: Waveform::new(amp, fps),
+            wave: Waveform::new(max, fps),
         }
     }
     /// parse all lines as input and write output to file

@@ -13,8 +13,8 @@ fn sine(i: f64, n: f64, period: f64, curve: &dyn Fn(f64) -> f64) -> f64 {
 pub struct Waveform {
     /// current bpm
     pub bpm: u16,
-    /// maximum amplitude of a note
-    pub amp: f64,
+    /// maximum number of simultaneously playable notes without scaling down the amplitude
+    pub max: usize,
     /// number of samples/frames per second
     pub fps: u32,
     /// waveform buffer
@@ -22,8 +22,8 @@ pub struct Waveform {
 }
 
 impl Waveform {
-    pub fn new(amp: f64, fps: u32) -> Self {
-        Self { amp, bpm: 0, fps, buffer: Vec::new() }
+    pub fn new(max: usize, fps: u32) -> Self {
+        Self { max, bpm: 0, fps, buffer: Vec::new() }
     }
     /// return number of frames given the length as beat
     pub fn frame_count(&self, beat: f64) -> usize {
@@ -33,7 +33,7 @@ impl Waveform {
     }
     //#region fold buffer
     /// add a note onto the waveform
-    fn fold_with_note(&mut self, len: usize, freq: f64) -> Result<(), String> {
+    fn fold_with_note(&mut self, len: usize, freq: f64, max: usize) -> Result<(), String> {
         // no need to add rests
         if freq == 0.0 { return Ok(()); }
         if len == 0 || self.bpm == 0 {
@@ -45,7 +45,7 @@ impl Waveform {
             }
         } else {
             let period = freq * PI * 2.0 / self.fps as f64;
-            let a = self.amp;
+            let a = i16::MAX as f64 / self.max.max(max) as f64;
             // add new wave to buffer
             Ok((0..len).map(
                 |i| a * sine(i as f64, len as f64, period, &sinusoid)
@@ -58,13 +58,19 @@ impl Waveform {
         if size == 0 {
             Err(format!("line size is 0 while trying to add to waveform"))
         } else {
+            // resize buffer if needed
             if self.buffer.len() < size {
                 self.buffer.resize(size, 0);
             }
+            // maximum number of notes to be play at the same time
+            let max = line.chords().fold(0, |acc, chord| if chord.count() > acc {
+                chord.count()
+            } else { acc });
+
             for chord in line.chords() {
                 let length = chord.length;
                 for freq in chord.frequencies.iter() {
-                    self.fold_with_note(length, *freq)?;
+                    self.fold_with_note(length, *freq, max)?;
                 }
             }
             Ok(())
