@@ -142,7 +142,7 @@ impl InputParser {
                     chord.size = if *staccato { length * 2 } else { length };
                 }
                 // extend current chord from captures and update to_shift/to_clear
-                Token::Capture(Cap::Front(captured)) => if chord.is_empty() && rc.is_empty() {
+                Token::Capture(Cap::Front(captured)) => if chord.is_new() && rc.is_new() {
                     rc = Rc::clone(captured)
                 } else {
                     chord.extend(captured)
@@ -159,7 +159,7 @@ impl InputParser {
                 // (Front, Cap | Len | None)
                 // todo panic for invalid token sequences LL LC LN CF CN (CC?)
                 _ => {
-                    let new = if chord.is_empty() { rc } else { Rc::new(chord + (*rc).clone()) };
+                    let new = if chord.is_new() { rc } else { Rc::new(chord + (*rc).clone()) };
                     self.cap.capture(Rc::clone(&new));
                     line.push(new);
                     chord = Chord::new();

@@ -30,9 +30,9 @@ impl Chord {
             frequencies: self.frequencies.iter().map(|&f| f * scale).collect(),
         }
     }
-    /// returns `true` if `self` has no frequencies
-    pub fn is_empty(&self) -> bool {
-        self.frequencies.is_empty()
+    /// returns `true` if `self` is newly initialised
+    pub fn is_new(&self) -> bool {
+        self.size == 0 && self.length == 0 && self.frequencies.is_empty()
     }
     /// push a new frequency to chord
     pub fn push(&mut self, frequency: f64) {
@@ -40,10 +40,8 @@ impl Chord {
         // f64 does not implement Eq ffs
         // assert!(self.frequencies.insert(frequency), "attempt to insert existing frequency to a chord: {}", frequency);
     }
-    /// extend a chord to self
+    /// extend the frequencies in rhs to lhs
     pub fn extend(&mut self, rhs: &Rc<Chord>) {
-        assert_eq!(self.length, rhs.length, "attempt to extend a chord without equal length");
-        assert_eq!(self.size, rhs.size, "attempt to extend a chord without equal size");
         self.frequencies.extend(rhs.frequencies.iter());
     }
 }
@@ -51,12 +49,12 @@ impl Chord {
 impl Add for Chord {
     type Output = Self;
 
+    /// create new chord with length and size from lhs and frequencies from both
+    /// (thus the operation is not commutative)
     fn add(self, rhs: Self) -> Self::Output {
-        if rhs.is_empty() {
+        if rhs.is_new() {
             Self { ..self }
         } else {
-            assert_eq!(self.length, rhs.length, "attempt to add two chords without equal length");
-            assert_eq!(self.size, rhs.size, "attempt to add two chords without equal size");
             let mut frequencies = self.frequencies.clone();
             frequencies.extend(&rhs.frequencies);
             Self { frequencies, ..self }
