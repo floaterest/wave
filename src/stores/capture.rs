@@ -20,9 +20,9 @@ impl Capture {
         }
     }
     /// shift current to the next chord from capture
-    pub fn shift(&mut self) -> Option<()> {
+    pub fn shift(&mut self, pop: bool) -> Option<()> {
         match self.captures.pop_front() {
-            Some(chord) => Some(self.captures.push_back(chord)),
+            Some(chord) => Some(if pop { () } else { self.captures.push_back(chord) }),
             None => None,
         }
     }

@@ -53,7 +53,10 @@ impl InputParser {
     pub fn write<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
         self.wr.start(self.wave.fps)?;
         // not using for loops here because CLion won't give me autocomplete
-        lines.for_each(|line| self.parse_line(line.trim()));
+        lines.enumerate().for_each(|(i, line)| {
+            println!("{}", i + 1);
+            self.parse_line(line.trim())
+        });
         Ok(self.wr.finish()?)
     }
     /// parse a line from input
@@ -166,8 +169,8 @@ impl InputParser {
                 chord.size = if *staccato { length * 2 } else { length };
             }
             // extend current chord from captures and update to_shift/to_clear
-            Token::Capture(Cap::Shift(key, clear, scale)) => {
-                let captured = self.cap.will_shift(Rc::new(key.clone()), *clear);
+            Token::Capture(Cap::Shift(key, pop, scale)) => {
+                let captured = self.cap.will_shift(Rc::new(key.clone()), *pop);
                 chord.extend(if let Some(r) = scale {
                     Rc::new(captured.scale(*r))
                 } else {

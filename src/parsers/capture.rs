@@ -77,8 +77,8 @@ pub struct CaptureParser {
     to_capture: HashSet<Rc<String>>,
     /// set of keys (rc pointing to keys in captures) to shift
     to_shift: HashSet<Rc<String>>,
-    /// set of keys (rc pointing to keys in captures) to clear
-    to_clear: HashSet<Rc<String>>,
+    /// set of keys (rc pointing to keys in captures) to pop
+    to_pop: HashSet<Rc<String>>,
 }
 
 impl CaptureParser {
@@ -87,7 +87,7 @@ impl CaptureParser {
             captures: HashMap::new(),
             to_capture: HashSet::new(),
             to_shift: HashSet::new(),
-            to_clear: HashSet::new(),
+            to_pop: HashSet::new(),
         }
     }
     /// schedule key to be captured
@@ -95,8 +95,8 @@ impl CaptureParser {
         self.to_capture.insert(key);
     }
     /// schedule key to shift (or clear) and return current chord in key
-    pub fn will_shift(&mut self, key: Rc<String>, clear: bool) -> Rc<Chord> {
-        let set = if clear { &mut self.to_clear } else { &mut self.to_shift };
+    pub fn will_shift(&mut self, key: Rc<String>, pop: bool) -> Rc<Chord> {
+        let set = if pop { &mut self.to_pop } else { &mut self.to_shift };
         match self.captures.get_key_value(&key) {
             Some((key, chord)) => {
                 // insert the key from captures, not from parameters
@@ -121,17 +121,14 @@ impl CaptureParser {
         // assume to_capture is already cleared from self.capture()
         for shift in self.to_shift.iter() {
             match self.captures.get_mut(shift) {
-                Some(chord) => chord.shift().unwrap_or_else(
-                    || panic_empty(shift, "shift")
-                ),
+                Some(chord) => chord.shift(
+                    self.to_pop.contains(shift)
+                ).unwrap_or_else(|| panic_empty(shift, "shift")),
                 None => panic_not_found(shift, "shift"),
             }
         }
-        for clear in self.to_clear.iter() {
-            self.captures.remove(clear);
-        }
         self.to_shift.clear();
-        self.to_clear.clear();
+        self.to_pop.clear();
     }
     /// parse token as capture
     pub fn parse(&self, token: &str) -> Option<Cap> {
