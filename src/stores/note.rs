@@ -37,7 +37,11 @@ impl Chord {
     pub fn extend(&mut self, rhs: Rc<Chord>) {
         if self.frequencies.is_empty() {
             // clone rhs to self
-            *self = (*rhs).clone()
+            match (self.length, self.size) {
+                (0, 0) => *self = (*rhs).clone(),
+                (0, _) | (_, 0) => panic!("attempt to extend a chord where length xor size is 0"),
+                (_, _) => self.frequencies = (*rhs).frequencies.clone()
+            }
         } else {
             assert_eq!(self.length, rhs.length, "attempt to extend a chord without equal length");
             assert_eq!(self.size, rhs.size, "attempt to extend a chord without equal size");
