@@ -102,7 +102,7 @@ impl InputParser {
     fn parse_repeat(&mut self, mut tokens: Peekable<SplitAsciiWhitespace>) -> Result<(), String> {
         // current token type
         let mut cty = Some(self.rep.parse(tokens.next().unwrap())?);
-        while let Some(ty) = &cty {
+        while let Some(ty) = cty {
             // next token type
             let nty = tokens.next().and_then(|token| Some(self.rep.parse(token).ok()?));
 
@@ -111,9 +111,11 @@ impl InputParser {
                 Rep::VoltaStart(vs) => self.rep.start(&vs),
                 Rep::RepeatEnd | Rep::VoltaEnd => self.rep.start(&[!0]),
             }
-            match (&ty, &nty) {
-                (Rep::RepeatStart | Rep::VoltaStart(_), _) => (),
-                (_, Some(Rep::RepeatStart) | None) => {
+            match (ty, &nty) {
+                // change repeat trigger to VoltaEnd
+                (Rep::RepeatEnd, Some(Rep::VoltaStart(_))) => self.rep.set_trigger(Rep::VoltaEnd)?,
+                // if current is the repeat trigger
+                (end, Some(Rep::RepeatStart) | None) if self.rep.get_trigger() == end => {
                     // move self.rep to rep
                     let rep = std::mem::take(&mut self.rep);
                     // now there's no borrowing 2 values from self at tho same time
