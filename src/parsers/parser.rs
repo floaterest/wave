@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Result;
 
 use crate::buffer::Buffer;
-use crate::note::ntof;
+use crate::parsers::NoteParser;
 use crate::repeat::Repeat;
 use crate::writer::Writer;
 
@@ -16,8 +15,7 @@ pub struct Parser {
     writer: Writer,
     repeat: Repeat,
     buffer: Buffer,
-    /// note -> freq
-    notes: HashMap<String, f64>,
+    note: NoteParser,
 }
 
 impl Parser {
@@ -26,7 +24,7 @@ impl Parser {
             buffer: Buffer::new(amp, fps),
             writer: Writer::new(dest),
             repeat: Repeat::new(),
-            notes: HashMap::new(),
+            note: NoteParser::new(),
         }
     }
     /// parse lines of input and write wave file
@@ -103,7 +101,7 @@ impl Parser {
             },
             // note value
             _ => {
-                let freq = *self.notes.entry(token.to_string()).or_insert(ntof(token.as_bytes()));
+                let freq = self.note.frequency(token);
                 self.buffer.add(len, freq);
                 self.repeat.push(len, freq);
             },
