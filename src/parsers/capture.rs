@@ -18,7 +18,7 @@ pub enum Cap {
     Shift(String, bool, Option<f64>),
 }
 
-/// check if byte should be start of capture token
+/// check if a line should be parsed as capture based on the first byte
 pub fn should_be_cap(byte: u8) -> bool {
     matches!(byte, CAPTURE | SHIFT | CLEAR)
 }
