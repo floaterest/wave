@@ -30,8 +30,9 @@ impl Repeat {
     /// add a new note to the current voltas
     pub fn push(&mut self, line: Line) {
         let rc = Rc::new(line);
-        let voltas = &mut self.voltas;
-        self.to_store.iter().for_each(|&v| voltas[v].push(rc.clone()));
+        for &v in self.to_store.iter() {
+            self.voltas[v].push(rc.clone());
+        }
     }
     /// free all data
     pub fn clear(&mut self) {
