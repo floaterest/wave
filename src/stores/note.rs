@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::slice::Iter;
 
-/// Note token
 #[derive(PartialEq)]
 pub enum Note {
     /// number of beats
@@ -48,12 +47,12 @@ impl Chord {
             // clone rhs to self
             *self = rhs.clone()
         } else {
-            assert_eq!(self.length, rhs.length, "attempt to add a chord without equal length");
-            assert_eq!(self.size, rhs.size, "attempt to add a chord without equal size");
+            assert_eq!(self.length, rhs.length, "attempt to extend a chord without equal length");
+            assert_eq!(self.size, rhs.size, "attempt to extend a chord without equal size");
             self.frequencies.extend(rhs.frequencies.iter());
         }
     }
-    /// clear the content
+    /// reset itself
     pub fn clear(&mut self) {
         (self.length, self.size) = (0, 0);
         self.frequencies.clear();

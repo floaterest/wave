@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
-use crate::buffers::note::Chord;
+use crate::stores::note::Chord;
 
-/// Capture token
 pub enum Cap {
     /// (key)
     Capture(String),
@@ -10,7 +9,6 @@ pub enum Cap {
     Shift(String, bool),
 }
 
-//#region Capture
 pub struct Capture {
     /// current chord
     index: usize,
@@ -35,4 +33,3 @@ impl Capture {
         self.captures.push(chord);
     }
 }
-//#endregion Capture

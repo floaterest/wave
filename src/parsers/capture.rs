@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::buffers::capture::{Cap, Capture};
-use crate::buffers::note::Chord;
+use crate::stores::capture::{Cap, Capture};
+use crate::stores::note::Chord;
 
 pub const CAPTURE: u8 = b'(';
 pub const SHIFT: u8 = b'[';
@@ -15,11 +15,11 @@ fn panic(key: &str, action: &str) -> ! {
 pub struct CaptureParser {
     /// stores the captured chords
     captures: HashMap<Rc<String>, Capture>,
-    /// set of keys to capture
+    /// set of keys (rc pointing to keys in captures) to capture
     to_capture: HashSet<Rc<String>>,
-    /// set of keys to shift
+    /// set of keys (rc pointing to keys in captures) to shift
     to_shift: HashSet<Rc<String>>,
-    /// set of keys to clear
+    /// set of keys (rc pointing to keys in captures) to clear
     to_clear: HashSet<Rc<String>>,
 }
 
@@ -36,7 +36,7 @@ impl CaptureParser {
     pub fn will_capture(&mut self, key: Rc<String>) {
         self.to_capture.insert(key);
     }
-    /// return current chord in key and schedule key to shift (or clear)
+    /// schedule key to shift (or clear) and return current chord in key
     pub fn will_shift(&mut self, key: Rc<String>, clear: bool) -> Rc<Chord> {
         let set = if clear { &mut self.to_clear } else { &mut self.to_shift };
         match self.captures.get_key_value(&key) {
@@ -78,7 +78,7 @@ impl CaptureParser {
             _ => None,
         }
     }
-    /// parse token as capture or panic
+    /// parse token as capture or die
     fn parse_cap(&self, token: &str, prefix: u8) -> Cap {
         // get matching pair
         let suffix = match prefix {
