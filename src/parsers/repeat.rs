@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use crate::stores::note::Line;
@@ -49,7 +49,7 @@ fn parse_volta_start(bytes: &[u8]) -> Option<Vec<usize>> {
 #[derive(Default)]
 pub struct RepeatParser {
     /// 0 for pre-volta, MAX for post-volta
-    voltas: HashMap<usize, Rc<RefCell<Vec<Line>>>>,
+    voltas: BTreeMap<usize, Rc<RefCell<Vec<Line>>>>,
     /// indices of one of the voltas to record
     current: usize,
 }
@@ -57,7 +57,7 @@ pub struct RepeatParser {
 impl RepeatParser {
     pub fn new() -> Self {
         Self {
-            voltas: HashMap::new(),
+            voltas: BTreeMap::new(),
             current: 0,
         }
     }
