@@ -7,14 +7,14 @@ use std::str::SplitAsciiWhitespace;
 use crate::buffers::capture::Cap;
 use crate::buffers::note::{Chord, Line, Note};
 use crate::buffers::waveform::Waveform;
-use crate::parsers::capture::{CAPTURE, CaptureParser};
+use crate::parsers::capture::{CAPTURE, CaptureParser, CLEAR, SHIFT};
 use crate::parsers::note::{NoteParser, STACCATO};
 use crate::writer::Writer;
 
 /// check if a line should be parsed as chords based on the first token
 fn should_be_chords(token: &str) -> bool {
     match token.as_bytes()[0] {
-        CAPTURE => true,
+        CAPTURE | SHIFT | CLEAR => true,
         b if b.is_ascii_digit() => true,
         _ => false,
     }
