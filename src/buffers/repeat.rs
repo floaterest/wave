@@ -1,11 +1,12 @@
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use crate::buffers::Waveform;
 use crate::line::Line;
 use crate::writer::Writer;
 
 pub struct Repeat {
-    pub voltas: Vec<Vec<Line>>,
+    pub voltas: Vec<Vec<Rc<Line>>>,
     pub current: usize,
     pub to_store: HashSet<usize>
 }
@@ -27,11 +28,10 @@ impl Repeat {
         }
     }
     /// add a new note to the current voltas
-    pub fn push(&mut self, line: &Line) {
-        // todo let multiple v point to the same Vec of Lines
-        for &v in self.to_store.iter() {
-            self.voltas[v].push(line.clone());
-        }
+    pub fn push(&mut self, line: Line) {
+        let rc = Rc::new(line);
+        let voltas = &mut self.voltas;
+        self.to_store.iter().for_each(|&v| voltas[v].push(rc.clone()));
     }
     /// free all data
     pub fn clear(&mut self) {
