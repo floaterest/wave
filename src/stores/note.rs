@@ -1,3 +1,4 @@
+use std::ops::Add;
 use std::rc::Rc;
 use std::slice::Iter;
 
@@ -26,32 +27,42 @@ impl Chord {
         Self {
             length: self.length,
             size: self.size,
-            frequencies: self.frequencies.iter().map(|&f| f * scale).collect()
+            frequencies: self.frequencies.iter().map(|&f| f * scale).collect(),
         }
+    }
+    /// returns `true` if `self` has no frequencies
+    pub fn is_empty(&self) -> bool {
+        self.frequencies.is_empty()
     }
     /// push a new frequency to chord
     pub fn push(&mut self, frequency: f64) {
         self.frequencies.push(frequency);
+        // f64 does not implement Eq ffs
+        // assert!(self.frequencies.insert(frequency), "attempt to insert existing frequency to a chord: {}", frequency);
     }
     /// extend a chord to self
-    pub fn extend(&mut self, rhs: Rc<Chord>) {
-        if self.frequencies.is_empty() {
-            // clone rhs to self
-            match (self.length, self.size) {
-                (0, 0) => *self = (*rhs).clone(),
-                (0, _) | (_, 0) => panic!("attempt to extend a chord where length xor size is 0"),
-                (_, _) => self.frequencies = (*rhs).frequencies.clone()
-            }
-        } else {
-            assert_eq!(self.length, rhs.length, "attempt to extend a chord without equal length");
-            assert_eq!(self.size, rhs.size, "attempt to extend a chord without equal size");
-            self.frequencies.extend(rhs.frequencies.iter());
-        }
+    pub fn extend(&mut self, rhs: &Rc<Chord>) {
+        assert_eq!(self.length, rhs.length, "attempt to extend a chord without equal length");
+        assert_eq!(self.size, rhs.size, "attempt to extend a chord without equal size");
+        self.frequencies.extend(rhs.frequencies.iter());
     }
-    /// reset itself
-    pub fn clear(&mut self) {
-        (self.length, self.size) = (0, 0);
-        self.frequencies.clear();
+}
+
+impl Add for Chord {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        assert_eq!(self.length, rhs.length, "attempt to add two chords without equal length");
+        assert_eq!(self.size, rhs.size, "attempt to add two chords without equal size");
+        let mut frequencies = self.frequencies.clone();
+        frequencies.extend(&rhs.frequencies);
+        Self { frequencies, ..self }
+    }
+}
+
+impl PartialEq for Chord {
+    fn eq(&self, other: &Self) -> bool {
+        self.size == other.size && self.length == other.length && self.frequencies == other.frequencies
     }
 }
 //#endregion  Chord
@@ -60,7 +71,7 @@ impl Chord {
 /// collections of chords to be played at the same time
 #[derive(Clone, Debug)]
 pub struct Line {
-    chords: Vec<Rc<Chord>>
+    chords: Vec<Rc<Chord>>,
 }
 
 impl Line {
