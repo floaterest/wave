@@ -3,11 +3,11 @@ use std::rc::Rc;
 
 use crate::stores::note::Chord;
 
+const CAP: u8 = b'(';
 const POP: u8 = b'<';
 const FRONT: u8 = b'[';
 const SHIFT: u8 = b'|';
 const CLEAR: u8 = b'{';
-const CAPTURE: u8 = b'(';
 const RAISE: [u8; 2] = [b'^', b'8'];
 const LOWER: [u8; 2] = [b'_', b'8'];
 
@@ -21,7 +21,7 @@ pub enum Cap {
 
 /// check if a line should be parsed as capture based on the first byte
 pub fn should_be_cap(byte: u8) -> bool {
-    matches!(byte, CAPTURE | POP | FRONT | SHIFT | CLEAR)
+    matches!(byte, CAP | POP | FRONT | SHIFT | CLEAR)
 }
 
 fn parse_scale(bytes: &[u8]) -> Option<f64> {
@@ -38,46 +38,52 @@ pub struct CaptureParser {
     /// stores the captured chords
     captures: HashMap<Rc<String>, VecDeque<Rc<Chord>>>,
     /// things to do upon update
-    todo: HashMap<u8, HashSet<Rc<String>>>,
+    to_cap: HashSet<Rc<String>>,
+    to_pop: HashSet<Rc<String>>,
+    to_shift: HashSet<Rc<String>>,
+    to_clear: HashSet<Rc<String>>,
 }
 
 impl CaptureParser {
     pub fn new() -> Self {
         Self {
             captures: HashMap::new(),
-            todo: HashMap::new(),
+            to_cap: HashSet::new(),
+            to_pop: HashSet::new(),
+            to_shift: HashSet::new(),
+            to_clear: HashSet::new(),
         }
     }
     pub fn will_capture(&mut self, key: Rc<String>) {
-        self.todo.entry(CAPTURE).or_insert(HashSet::new()).insert(key);
+        self.to_cap.insert(key);
     }
     /// push a chord to captures and clear the keys to capture
     pub fn capture(&mut self, chord: Rc<Chord>) {
         let captures = &mut self.captures;
-        self.todo.get_mut(&CAPTURE).unwrap_or_else(
-            || panic!("attempt to capture while no destination are specified")
-        ).drain().for_each(
+        self.to_cap.drain().for_each(
             |cap| captures.entry(cap).or_insert(VecDeque::new()).push_back(Rc::clone(&chord))
-        )
+        );
     }
     /// update the captures according to to_do
     pub fn update(&mut self) {
         let captures = &mut self.captures;
-        let pop = self.todo.get(&POP).unwrap();
-        let shift = self.todo.get(&SHIFT).unwrap();
-        let clear = self.todo.get(&CLEAR).unwrap();
+        let pop = &self.to_pop;
+        let shift = &self.to_shift;
+        let clear = &self.to_clear;
         // pop \ (shift U clear)
-        pop.difference(shift).filter(|&k| !clear.contains(k)).for_each(
-            |k| { captures.get_mut(k).unwrap().pop_front(); }
-        );
+        pop.difference(&shift).filter(
+            |&k| !clear.contains(k)
+        ).for_each(|k| { captures.get_mut(k).unwrap().pop_front(); });
         // shift \ clear
-        shift.difference(clear).for_each(
+        shift.difference(&clear).for_each(
             |k| captures.get_mut(k).unwrap().rotate_left(1)
         );
         // kill the anyone that deserves to die
         clear.iter().for_each(|k| { captures.remove(k); });
         // reset everything like nothing happened
-        self.todo.clear();
+        self.to_shift.clear();
+        self.to_pop.clear();
+        self.to_clear.clear();
     }
     /// parse token as capture
     pub fn parse(&mut self, token: &str) -> Option<Cap> {
@@ -95,7 +101,7 @@ impl CaptureParser {
             None => Rc::new(key),
         };
         match prefix {
-            CAPTURE => Cap::Capture(key),
+            CAP => Cap::Capture(key),
             POP | FRONT | SHIFT | CLEAR => {
                 self.process_front(key, prefix, parse_scale(token.as_bytes()))
             }
@@ -105,7 +111,16 @@ impl CaptureParser {
     /// process the token as pop/front/shift/clear
     fn process_front(&mut self, key: Rc<String>, prefix: u8, scale: Option<f64>) -> Cap {
         // update schedule
-        self.todo.entry(prefix).or_insert(HashSet::new()).insert(Rc::clone(&key));
+        let to = match prefix {
+            CAP => Some(&mut self.to_cap),
+            POP => Some(&mut self.to_pop),
+            SHIFT => Some(&mut self.to_shift),
+            CLEAR => Some(&mut self.to_clear),
+            _ => None,
+        };
+        if let Some(to) = to {
+            to.insert(Rc::clone(&key));
+        }
         // get front chord
         let front = Rc::clone(self.captures.get(&key).unwrap_or_else(
             || panic!("key {} not found while trying to access front", &key)
