@@ -7,11 +7,10 @@ use std::{
 use parsers::Parser;
 
 mod curves;
-mod repeat;
 mod line;
 mod writer;
-mod waveform;
 mod parsers;
+mod buffers;
 
 fn io() -> (String, String) {
     let args: Vec<String> = env::args().collect();
