@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use crate::stores::note::Note;
-
 const TIE: u8 = b'+';
 const DOTTED: u8 = b'.';
 const STACCATO: u8 = b'*';
@@ -20,6 +18,14 @@ const TONES: [(&str, i32); 17] = [
     ("a#", 2), ("bb", 2),
     ("b", 3),
 ];
+
+#[derive(PartialEq)]
+pub enum Note {
+    /// (number of beats, staccato)
+    Length(f64, bool),
+    /// Hz
+    Frequency(f64),
+}
 
 pub struct NoteParser {
     notes: HashMap<usize, f64>,

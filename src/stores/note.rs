@@ -1,14 +1,6 @@
 use std::rc::Rc;
 use std::slice::Iter;
 
-#[derive(PartialEq)]
-pub enum Note {
-    /// (number of beats, staccato)
-    Length(f64, bool),
-    /// Hz
-    Frequency(f64),
-}
-
 //#region Chord
 #[derive(Clone, Debug)]
 pub struct Chord {

@@ -2,13 +2,6 @@ use std::rc::Rc;
 
 use crate::stores::note::Chord;
 
-#[derive(PartialEq)]
-pub enum Cap {
-    /// (key)
-    Capture(String),
-    /// (key, clear)
-    Shift(String, bool),
-}
 
 pub struct Capture {
     /// current chord

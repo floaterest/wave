@@ -1,12 +1,20 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::stores::capture::{Cap, Capture};
+use crate::stores::capture::Capture;
 use crate::stores::note::Chord;
 
 const CAPTURE: u8 = b'(';
 const SHIFT: u8 = b'[';
 const CLEAR: u8 = b'{';
+
+#[derive(PartialEq)]
+pub enum Cap {
+    /// (key)
+    Capture(String),
+    /// (key, clear)
+    Shift(String, bool),
+}
 
 /// check if byte should be start of capture token
 pub fn should_be_cap(byte: u8) -> bool {
