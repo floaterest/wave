@@ -94,6 +94,9 @@ impl RepeatParser {
     }
     /// add new line to current voltas
     pub fn push(&mut self, line: Line) -> Result<(), String> {
+        if line.size() == 0 {
+            return Err(format!("attempt to push empty line"));
+        }
         match self.voltas.get(&self.current) {
             Some(volta) => Ok(volta.borrow_mut().push(line)),
             None => not_found(self.current, "push new line"),
