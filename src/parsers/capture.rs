@@ -32,9 +32,14 @@ fn is_cap(bytes: &[u8], prefix: u8, suffix: u8) -> bool {
     )
 }
 
-/// panic key not found error
-fn panic(key: &str, action: &str) -> ! {
+/// panic because key not found
+fn panic_not_found(key: &str, action: &str) -> ! {
     panic!("Key '{}' not found while trying to {}", key, action)
+}
+
+/// panic because key found but value is empty
+fn panic_empty(key: &str, action: &str) -> ! {
+    panic!("Capture in '{}' is empty while trying to {}", key, action)
 }
 
 /// parse token as capture or die
@@ -97,9 +102,12 @@ impl CaptureParser {
                 // insert the key from captures, not from parameters
                 // (they are the same value but rc points to different places)
                 (*set).insert(Rc::clone(key));
-                chord.current()
+                match chord.current() {
+                    Some(chord) => chord,
+                    None => panic_empty(&key, "get current"),
+                }
             },
-            None => panic(&key, "get current"),
+            None => panic_not_found(&key, "get current"),
         }
     }
     /// push a chord to captures and clear to_capture
@@ -113,8 +121,10 @@ impl CaptureParser {
         // assume to_capture is already cleared from self.capture()
         for shift in self.to_shift.iter() {
             match self.captures.get_mut(shift) {
-                Some(chord) => chord.shift(),
-                None => panic(shift, "shift"),
+                Some(chord) => chord.shift().unwrap_or_else(
+                    || panic_empty(shift, "shift")
+                ),
+                None => panic_not_found(shift, "shift"),
             }
         }
         for clear in self.to_clear.iter() {
