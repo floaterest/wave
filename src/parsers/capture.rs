@@ -34,12 +34,12 @@ fn is_cap(bytes: &[u8], prefix: u8, suffix: u8) -> bool {
 
 /// panic because key not found
 fn panic_not_found(key: &str, action: &str) -> ! {
-    panic!("Key '{}' not found while trying to {}", key, action)
+    panic!("Key {} not found while trying to {}", key, action)
 }
 
 /// panic because key found but value is empty
 fn panic_empty(key: &str, action: &str) -> ! {
-    panic!("Capture in '{}' is empty while trying to {}", key, action)
+    panic!("Capture in {} is empty while trying to {}", key, action)
 }
 
 /// parse token as capture or die
