@@ -32,7 +32,9 @@ impl Chord {
     }
     /// returns `true` if `self` can be replaced by chord
     pub fn can_be_replaced_by(&self, chord: &Chord) -> bool {
-        self.size == chord.size && self.length == chord.length && self.is_empty()
+        self.is_empty()
+            && (self.size == chord.size && self.length == chord.length)
+            || (self.size == 0 && self.length == 0)
     }
     /// returns `true` if `self` has no frequencies
     pub fn is_empty(&self) -> bool {
