@@ -44,8 +44,8 @@ impl Repeat {
     /// write a volta
     fn write(&mut self, v: usize, buffer: &mut Waveform, write: &mut dyn FnMut(Vec<i16>)) {
         for line in self.voltas[v].iter() {
-            buffer.add_line(line);
-            write(buffer.drain_to(line.offset()));
+            buffer.fold_with_line(line);
+            write(buffer.drain_until(line.offset()));
         }
     }
     /// repeat all needed voltas

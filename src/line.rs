@@ -42,9 +42,11 @@ impl Chord {
     pub fn is_empty(&self) -> bool {
         self.size == 0 || self.length == 0 || self.frequencies.is_empty()
     }
-    pub fn clear(&mut self) {
+    pub fn drain(&mut self) -> Self {
+        let copy = self.clone();
         (self.size, self.length) = (0, 0);
         self.frequencies.clear();
+        copy
     }
 }
 
