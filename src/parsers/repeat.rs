@@ -41,7 +41,7 @@ fn not_found(v: usize, action: &str) -> Result<(), String> {
 fn parse_volta_start(bytes: &[u8]) -> Option<Vec<usize>> {
     match bytes.strip_prefix(&[REPEAT]) {
         Some(voltas) => Some(voltas.iter().filter_map(
-            |&b| if b == SEP { None } else { Some(b as usize) }
+            |&b| if b == SEP { None } else { Some((b - b'0') as usize) }
         ).collect()),
         None => None
     }
