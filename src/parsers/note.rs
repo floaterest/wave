@@ -36,7 +36,8 @@ impl NoteParser {
     /// parse token as note length or frequency
     pub fn parse(&mut self, token: &str) -> Option<Note> {
         if token.as_bytes()[0].is_ascii_digit() {
-            Some(Note::Length(self.length(token)))
+            let (beat, staccato) = self.length(token);
+            Some(Note::Length(beat, staccato))
         } else if self.is_freq(token) {
             Some(Note::Frequency(self.frequency(token)))
         } else if self.is_rest(token) {
@@ -46,14 +47,14 @@ impl NoteParser {
         }
     }
     /// parse token as number of beats
-    fn length(&self, token: &str) -> f64 {
+    fn length(&self, token: &str) -> (f64, bool) {
         match token.parse::<usize>() {
             // normal note value
-            Ok(length) => 1.0 / length as f64,
+            Ok(length) => (1.0 / length as f64, false),
             Err(..) => match token.as_bytes().last() {
-                Some(&DOTTED) => self.scale(token, 1.5, DOTTED),
-                Some(&STACCATO) => self.scale(token, 0.5, STACCATO),
-                _ if self.has_tie(token) => self.parse_tie(token),
+                Some(&DOTTED) => (self.scale(token, 1.5, DOTTED), false),
+                Some(&STACCATO) => (self.scale(token, 0.5, STACCATO), true),
+                _ if self.has_tie(token) => (self.parse_tie(token), false),
                 _ => panic!("Invalid token as node length: {}", token),
             }
         }

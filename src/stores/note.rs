@@ -3,8 +3,8 @@ use std::slice::Iter;
 
 #[derive(PartialEq)]
 pub enum Note {
-    /// number of beats
-    Length(f64),
+    /// (number of beats, staccato)
+    Length(f64, bool),
     /// Hz
     Frequency(f64),
 }
