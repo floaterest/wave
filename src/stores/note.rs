@@ -52,11 +52,15 @@ impl Add for Chord {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.length, rhs.length, "attempt to add two chords without equal length");
-        assert_eq!(self.size, rhs.size, "attempt to add two chords without equal size");
-        let mut frequencies = self.frequencies.clone();
-        frequencies.extend(&rhs.frequencies);
-        Self { frequencies, ..self }
+        if rhs.is_empty() {
+            Self { ..self }
+        } else {
+            assert_eq!(self.length, rhs.length, "attempt to add two chords without equal length");
+            assert_eq!(self.size, rhs.size, "attempt to add two chords without equal size");
+            let mut frequencies = self.frequencies.clone();
+            frequencies.extend(&rhs.frequencies);
+            Self { frequencies, ..self }
+        }
     }
 }
 
