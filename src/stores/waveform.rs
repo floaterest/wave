@@ -33,30 +33,41 @@ impl Waveform {
     }
     //#region fold buffer
     /// add a note onto the waveform
-    fn fold_with_note(&mut self, len: usize, freq: f64) {
+    fn fold_with_note(&mut self, len: usize, freq: f64) -> Result<(), String> {
         // no need to add rests
-        if freq == 0.0 { return; }
-        assert_ne!(len, 0, "Frame count is 0 at {} Hz", freq);
-        assert_ne!(self.bpm, 0, "BPM is 0.0 at {}", freq);
-        let period = freq * PI * 2.0 / self.fps as f64;
-        let a = self.amp;
-        // add new wave to buffer
-        (0..len).map(
-            |i| a * sine(i as f64, len as f64, period, &sinusoid)
-        ).enumerate().for_each(|(i, y)| self.buffer[i] += y as i16)
+        if freq == 0.0 { return Ok(()); }
+        if len == 0 || self.bpm == 0 {
+            match (len, self.bpm) {
+                (0, 0) => Err(format!("frame count and BPM are 0.0 at {:.2} Hz", freq)),
+                (0, _) => Err(format!("frame count is 0 at {:.2} Hz", freq)),
+                (_, 0) => Err(format!("BPM is 0 at {:.2} Hz", freq)),
+                _ => panic!("wot"),
+            }
+        } else {
+            let period = freq * PI * 2.0 / self.fps as f64;
+            let a = self.amp;
+            // add new wave to buffer
+            Ok((0..len).map(
+                |i| a * sine(i as f64, len as f64, period, &sinusoid)
+            ).enumerate().for_each(|(i, y)| self.buffer[i] += y as i16))
+        }
     }
     // fold a new line into the accumulative buffer
-    pub fn fold_with_line(&mut self, line: &Line) {
+    pub fn fold_with_line(&mut self, line: &Line) -> Result<(), String> {
         let size = line.size();
-        assert_ne!(size, 0, "Line size is 0 when trying to generate waveform!");
-        if self.buffer.len() < size {
-            self.buffer.resize(size, 0);
-        }
-        for chord in line.chords() {
-            let length = chord.length;
-            for freq in chord.frequencies.iter() {
-                self.fold_with_note(length, *freq);
+        if size == 0 {
+            Err(format!("line size is 0 while trying to add to waveform"))
+        } else {
+            if self.buffer.len() < size {
+                self.buffer.resize(size, 0);
             }
+            for chord in line.chords() {
+                let length = chord.length;
+                for freq in chord.frequencies.iter() {
+                    self.fold_with_note(length, *freq)?;
+                }
+            }
+            Ok(())
         }
     }
     //#endregion write to buffer
