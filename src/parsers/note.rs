@@ -24,7 +24,7 @@ pub enum Note {
     /// (number of beats, staccato)
     Len(f64, bool),
     /// Hz
-    Freq(f64),
+    Pitch(f64),
 }
 
 pub struct NoteParser {
@@ -44,10 +44,10 @@ impl NoteParser {
         Ok(if token.as_bytes()[0].is_ascii_digit() {
             let (beat, staccato) = self.length(token)?;
             Some(Note::Len(beat, staccato))
-        } else if self.is_freq(token) {
-            Some(Note::Freq(self.frequency(token)?))
+        } else if self.is_pitch(token) {
+            Some(Note::Pitch(self.frequency(token)?))
         } else if self.is_rest(token) {
-            Some(Note::Freq(0.0))
+            Some(Note::Pitch(0.0))
         } else {
             None
         })
@@ -76,7 +76,7 @@ impl NoteParser {
     }
 
     /// check if token is a frequency
-    fn is_freq(&self, token: &str) -> bool {
+    fn is_pitch(&self, token: &str) -> bool {
         if token.is_empty() {
             false
         } else {

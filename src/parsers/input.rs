@@ -23,7 +23,7 @@ enum Token {
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", match &self {
-            Self::Note(Note::Freq(_)) => "note frequency",
+            Self::Note(Note::Pitch(_)) => "note frequency",
             Self::Note(Note::Len(_, _)) => "note length",
             Self::Cap(Cap::Cap(_)) => "cap capture",
             Self::Cap(Cap::Front(_)) => "cap front",
@@ -165,22 +165,27 @@ impl InputParser {
                     chord.extend(captured)
                 },
                 // push new frequency to current chord
-                Token::Note(Note::Freq(frequency)) => chord.push(*frequency),
+                Token::Note(Note::Pitch(frequency)) => chord.push(*frequency),
                 _ => {}
             }
             // help how do I refactor this monstrosity
+            // reference:
+            //  L: Note::Length
+            //  P: Note::Pitch
+            //  C: Cap::Cap
+            //  F: Cap::Front
             match (&cty, &nty) {
-                // ignore (Len, Front | Freq)
-                (Token::Note(Note::Len(_, _)), Token::Cap(Cap::Front(_)) | Token::Note(Note::Freq(_))) => (),
-                // error (Len, Len | Cap | None) | (Cap, Freq | None)
-                (Token::Note(Note::Len(_, _)), _) | (Token::Cap(Cap::Cap(_)), Token::Note(Note::Freq(_)) | Token::None) => {
+                // ignore (L, F|P)
+                (Token::Note(Note::Len(_, _)), Token::Cap(Cap::Front(_)) | Token::Note(Note::Pitch(_))) => (),
+                // error (L, L|C|N) | (C, P|N)
+                (Token::Note(Note::Len(_, _)), _) | (Token::Cap(Cap::Cap(_)), Token::Note(Note::Pitch(_)) | Token::None) => {
                     return Err(format!("invalid token sequence: ({}, {})", cty, nty));
                 }
-                // ignore (Freq, Freq) | (Front, Freq | Front)
-                (Token::Note(Note::Freq(_)), Token::Note(Note::Freq(_))) => (),
-                (Token::Cap(Cap::Front(_)), Token::Note(Note::Freq(_)) | Token::Cap(Cap::Front(_))) => (),
-                // push to line and capture (Freq, Len | Cap | Front | None) | (Front, Len | Cap | None)
-                (Token::Note(Note::Freq(_)) | Token::Cap(Cap::Front(_)), _) => {
+                // ignore (P, P) | (F, P|F)
+                (Token::Note(Note::Pitch(_)), Token::Note(Note::Pitch(_))) => (),
+                (Token::Cap(Cap::Front(_)), Token::Note(Note::Pitch(_)) | Token::Cap(Cap::Front(_))) => (),
+                // push to line and capture (P, L|C|F|N) | (F, L|C|N)
+                (Token::Note(Note::Pitch(_)) | Token::Cap(Cap::Front(_)), _) => {
                     let new = if chord.is_empty() {
                         rc
                     } else {
