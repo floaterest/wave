@@ -24,7 +24,10 @@ pub enum Rep {
 
 /// check if a line should be parsed as repeat based on the first token
 pub fn should_be_rep(token: &str) -> bool {
-    matches!(token.as_bytes()[0], REPEAT | DELIM)
+    let bytes = token.as_bytes();
+    bytes.contains(&REPEAT) && bytes.iter().all(
+        |&b| b.is_ascii_digit() || matches!(b, REPEAT | DELIM | SEP)
+    )
 }
 
 /// panic because volta not found
