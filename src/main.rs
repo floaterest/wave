@@ -10,7 +10,7 @@ mod curves;
 mod repeat;
 mod line;
 mod writer;
-mod buffer;
+mod waveform;
 mod parsers;
 
 fn io() -> (String, String) {

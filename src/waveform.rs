@@ -3,7 +3,7 @@ use std::f64::consts::PI;
 use crate::curves::{sine, sinusoid};
 use crate::line::Line;
 
-pub struct Buffer {
+pub struct Waveform {
     /// current bpm
     pub bpm: u16,
     /// maximum amplitude of a note
@@ -14,13 +14,15 @@ pub struct Buffer {
     buffer: Vec<i16>,
 }
 
-impl Buffer {
+impl Waveform {
     pub fn new(amp: f64, fps: u32) -> Self {
         Self { amp, bpm: 0, fps, buffer: Vec::new() }
     }
     /// resize the buffer and fill with 0
     pub fn resize(&mut self, size: usize) {
-        self.buffer.resize(size, 0);
+        if self.buffer.len() < size {
+            self.buffer.resize(size, 0);
+        }
     }
     pub fn len(&self) -> usize {
         self.buffer.len()
@@ -41,10 +43,19 @@ impl Buffer {
             |i| a * sine(i as f64, len as f64, period, &sinusoid)
         ).enumerate().for_each(|(i, y)| self.buffer[i] += y as i16)
     }
-    /// add a line to buffer
-    pub fn add_line(&mut self, line: &Line) {
-        if line.size == 0 { return; }
-        self.resize(line.size);
-        line.notes.iter().for_each(|(n, freq)| self.add(*n, *freq));
+    pub fn add_l(&mut self, line: &Line) {
+        let size = line.size();
+        assert_ne!(size, 0, "Line size is 0 when trying to generate waveform!");
+        self.resize(size);
+        for chord in line.chords() {
+            for freq in chord.frequencies.iter() {
+                self.add(chord.length, *freq);
+            }
+        }
+        // line.chords().iter().flat_map(
+        //     |ch| ch.frequencies.iter().map(|freq| (ch.length, *freq))
+        // ).for_each(
+        //     |(len, freq)| self.add(len, freq)
+        // );
     }
 }
