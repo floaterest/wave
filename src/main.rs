@@ -1,6 +1,8 @@
 mod scanner;
+mod wave;
 
 use scanner::Scanner;
+use wave::Wave;
 
 fn main() {
     let mut sc = Scanner::default();
@@ -8,11 +10,8 @@ fn main() {
     let a: f64 = sc.next();
     let d: u32 = sc.next();
     let fps: u32 = sc.next();
-    let bits_per_frame: u16 = sc.next();
+    let fname:String=sc.next();
 
-    println!("frequency: {:?} hz", f);
-    println!("amplitude: {:?}", a);
-    println!("duration: {:?}s", d);
-    println!("frames/sample rate: {:?} fps",fps);
-    println!("frame width: {:?} bits",bits_per_frame);
+    let w=Wave::new(fps);
+    w.write(f,a,d,fname).unwrap();
 }
