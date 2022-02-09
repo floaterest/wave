@@ -14,7 +14,7 @@ impl Wave {
         }
     }
 
-    pub fn write(&self, freq: f64, ampl: f64, d: u32, filename: String) -> Result<()> {
+    pub fn write(&self, freq: f64, ampl: f64, d: u32, filename: &str) -> Result<()> {
         let nchannels = 1i16;
         let bpf = 2u32;
         let fw: u16 = (bpf * 8) as u16;
