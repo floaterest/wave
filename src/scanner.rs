@@ -11,10 +11,10 @@ impl Scanner {
     pub fn next<T: str::FromStr>(&mut self) -> T {
         loop {
             if let Some(token) = self.buffer.pop() {
-                return token.parse().ok().unwrap();
+                return token.parse().ok().expect("Scanner: Parse failed");
             }
             let mut input = String::new();
-            stdin().read_line(&mut input).unwrap();
+            stdin().read_line(&mut input).expect("Scanner: Read failed");
             self.buffer = input.split_whitespace().rev().map(String::from).collect();
         }
     }
