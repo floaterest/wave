@@ -13,5 +13,5 @@ fn main() {
     let fname:String=sc.next();
 
     let w=Wave::new(fps);
-    w.write(f,a,d,fname).unwrap();
+    w.write(f,a,d,&fname).unwrap();
 }
