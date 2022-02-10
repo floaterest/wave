@@ -11,11 +11,16 @@ impl Scanner {
     pub fn next<T: str::FromStr>(&mut self) -> T {
         loop {
             if let Some(token) = self.buffer.pop() {
-                return token.parse().ok().unwrap();
+                return token.parse().ok().expect("Scanner: Parse failed");
             }
             let mut input = String::new();
-            stdin().read_line(&mut input).unwrap();
-            self.buffer = input.split_whitespace().rev().map(String::from).collect();
+            stdin().read_line(&mut input).expect("Scanner: Read failed");
+            self.buffer = input.split_ascii_whitespace().rev().map(String::from).collect();
         }
+    }
+    pub fn next_line(&self) -> Vec<String>{
+        let mut line = String::new();
+        stdin().read_line(&mut line).expect("Scanner: Read line failed");
+        line.split_ascii_whitespace().map(String::from).collect()
     }
 }
