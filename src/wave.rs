@@ -5,24 +5,27 @@ use std::io::{Result, Seek, SeekFrom, Write};
 
 pub struct Wave {
     pub frame_rate: u32,
+    /// in bytes
+    pub frame_width: u16,
+    pub nchannels: u16,
+    pub file: File,
+    pub amplitude: f64,
 }
 
 impl Wave {
-    pub fn new(fr: u32) -> Wave {
+    pub fn new(fr: u32, a: f64, fname: &str) -> Wave {
         Wave {
             frame_rate: fr,
+            frame_width: 2,
+            nchannels: 1,
+            amplitude: a,
+            file: File::create(fname).expect("Wave: Create file failed"),
         }
     }
 
-    pub fn write(&self, freq: f64, ampl: f64, d: u32, filename: &str) -> Result<()> {
-        let nchannels = 1i16;
-        let bpf = 2u32;
-        let fw: u16 = (bpf * 8) as u16;
-
-        let mut f = File::create(filename)?;
-
-        //#region header
-        f.write(&[
+    // write headers
+    pub fn start(&mut self) -> Result<()> {
+        self.file.write(&[
             82, 73, 70, 70, // RIFF
             0, 0, 0, 0, // file size
             87, 65, 86, 69, // WAVE
@@ -30,39 +33,49 @@ impl Wave {
             16, 0, 0, 0, // fmt chunk size
             1, 0, // format tag (PCM)
         ])?;
-        f.write(&unsafe { transmute(nchannels) } as &[u8; 2])?;
+        self.file.write(&unsafe { transmute(self.nchannels) } as &[u8; 2])?;
         // frame rate (fps)
-        f.write(&unsafe { transmute(self.frame_rate) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute(self.frame_rate) } as &[u8; 4])?;
         // byte rate
-        f.write(&unsafe { transmute(self.frame_rate * bpf) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute(self.frame_rate * self.frame_width as u32) } as &[u8; 4])?;
         // block align
-        f.write(&[2, 0])?;
-        // frame width (bits per frame)
-        f.write(&unsafe { transmute(fw) } as &[u8; 2])?;
+        self.file.write(&[2, 0])?;
+        // bits per frame
+        self.file.write(&unsafe { transmute(self.frame_width * 8) } as &[u8; 2])?;
 
-        f.write(&[
+        self.file.write(&[
             100, 97, 116, 97, // data
             0, 0, 0, 0, // nframes * nchannels * bytes / frame, also is file size - 36
         ])?;
-        //#endregion header
 
-        //#region data
-        let nframes = d * self.frame_rate;
-        let n = 2.0 * PI * freq / self.frame_rate as f64;
-        let mut frames: Vec<u8> = Vec::with_capacity((nframes * bpf) as usize);
+        Ok(())
+    }
+
+    // write frame data
+    pub fn write(&mut self, freqs: &[f64], duration: f32) -> Result<()> {
+        let nframes = (duration * self.frame_rate as f32) as u32;
+        let a = self.amplitude / freqs.len() as f64;
+        let n = 2.0 * PI / self.frame_rate as f64;
+
+        let mut bytes: Vec<u8> = Vec::with_capacity((nframes * self.frame_width as u32) as usize);
         (0..nframes).for_each(|i| {
-            frames.extend_from_slice(&unsafe { transmute((ampl * (n * i as f64).sin()) as i16) } as &[u8; 2])
+            let sin: f64 = freqs.iter().map(|f| (f * n * i as f64).sin()).sum();
+            bytes.extend_from_slice(&unsafe { transmute((a * sin) as i16) } as &[u8; 2]);
         });
-        f.write(&frames)?;
-        //#endregion data
 
-        //#region go back and write file size
-        let sz: u64 = f.metadata()?.len();
-        f.seek(SeekFrom::Start(4))?;
-        f.write(&unsafe { transmute(sz as u32) } as &[u8; 4])?;
-        f.seek(SeekFrom::Start(40))?;
-        f.write(&unsafe { transmute((sz - 36) as u32) } as &[u8; 4])?;
-        //#endregion go back and write file size
+        self.file.write(&bytes)?;
+
+        Ok(())
+    }
+
+    /// go back and write file size
+    pub fn finish(&mut self) -> Result<()> {
+        let sz: u64 = self.file.metadata()?.len();
+        self.file.seek(SeekFrom::Start(4))?;
+        self.file.write(&unsafe { transmute(sz as u32) } as &[u8; 4])?;
+        self.file.seek(SeekFrom::Start(40))?;
+        self.file.write(&unsafe { transmute((sz - 36) as u32) } as &[u8; 4])?;
+
         Ok(())
     }
 }
