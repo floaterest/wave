@@ -3,22 +3,24 @@ use std::mem::transmute;
 use std::f64::consts::PI;
 use std::io::{Result, Seek, SeekFrom, Write};
 
-pub struct Wave {
+pub struct Wave<'a> {
     pub frame_rate: u32,
     /// in bytes
     pub frame_width: u16,
     pub nchannels: u16,
     pub file: File,
     pub amplitude: f64,
+    pub fx: &'a dyn Fn(f64) -> f64,
 }
 
-impl Wave {
-    pub fn new(fr: u32, a: f64, fname: &str) -> Wave {
+impl Wave<'_> {
+    pub fn new<'a>(fr: u32, a: f64, fname: &str, fx: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
         Wave {
             frame_rate: fr,
             frame_width: 2,
             nchannels: 1,
             amplitude: a,
+            fx,
             file: File::create(fname).expect("Wave: Create file failed"),
         }
     }
@@ -60,8 +62,10 @@ impl Wave {
 
         let mut bytes: Vec<u8> = Vec::with_capacity((nframes * self.frame_width as u32) as usize);
         (0..nframes).for_each(|i| {
-            let sin: f64 = a * freqs.iter().map(|f| (f * n * i as f64).sin()).sum::<f64>();
-            bytes.extend_from_slice(&unsafe { transmute(sin as i16) } as &[u8; 2]);
+            let sin = freqs.iter().map(|f| (f * n * i as f64).sin()).sum::<f64>();
+            bytes.extend_from_slice(&unsafe {
+                transmute((a * &(self.fx)(i as f64 / nframes as f64) * sin) as i16)
+            } as &[u8; 2]);
         });
 
         self.file.write(&bytes)?;
