@@ -21,7 +21,11 @@ fn main() -> Result<()> {
         for _ in 0..nlines {
             let mut line = sc.next_line();
             let beat: f32 = line.pop().unwrap().parse().unwrap();
-            let freqs: Vec<f64> = line.iter().map(|n| note::ntof(n.as_bytes())).collect();
+            let freqs: Vec<f64> = if line.len() == 0 {
+                Vec::new()
+            } else {
+                line.iter().map(|n| note::ntof(n.as_bytes())).collect()
+            };
             w.write(&freqs, beat * 60.0 / bpm)?;
         }
     }
