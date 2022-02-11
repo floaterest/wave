@@ -18,9 +18,14 @@ impl Scanner {
             self.buffer = input.split_ascii_whitespace().rev().map(String::from).collect();
         }
     }
-    pub fn next_line(&self) -> Vec<String>{
-        let mut line = String::new();
-        stdin().read_line(&mut line).expect("Scanner: Read line failed");
-        line.split_ascii_whitespace().map(String::from).collect()
+    pub fn next_line(&self) -> Vec<String> {
+        loop {
+            let mut line = String::new();
+            stdin().read_line(&mut line).expect("Scanner: Read line failed");
+            let args: Vec<String> = line.split_ascii_whitespace().map(String::from).collect();
+            if args.len() != 0 {
+                return args;
+            }
+        }
     }
 }
