@@ -5,6 +5,7 @@ mod wave;
 use std::io::Result;
 use scanner::Scanner;
 use wave::Wave;
+use std::f64::consts::PI;
 
 fn main() -> Result<()> {
     let mut sc = Scanner::default();
@@ -13,7 +14,8 @@ fn main() -> Result<()> {
     let nbpm: usize = sc.next();
     let fname: String = sc.next();
 
-    let mut w = Wave::new(fps, ampl, &fname);
+    let fx = |n: f64| (n * PI).cos() * 0.5 + 0.5;
+    let mut w = Wave::new(fps, ampl, &fname, &fx);
     w.start()?;
     for _ in 0..nbpm {
         let bpm: f32 = sc.next();
