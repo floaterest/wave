@@ -10,6 +10,7 @@ pub struct Wave<'a> {
     pub nchannels: u16,
     pub file: File,
     pub amplitude: f64,
+    /// curve function
     pub fx: &'a dyn Fn(f64) -> f64,
 }
 
