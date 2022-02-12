@@ -15,13 +15,13 @@ pub struct Wave<'a> {
 }
 
 impl Wave<'_> {
-    pub fn new<'a>(fr: u32, a: f64, fname: &str, fx: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
+    pub fn new<'a>(frame_rate: u32, amplitude: f64, fname: &str, fx: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
         Wave {
-            frame_rate: fr,
+            frame_rate,
+            amplitude,
+            fx,
             frame_width: 2,
             nchannels: 1,
-            amplitude: a,
-            fx,
             file: File::create(fname).expect("Wave: Create file failed"),
         }
     }
