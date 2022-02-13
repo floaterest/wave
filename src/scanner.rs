@@ -13,9 +13,9 @@ impl Scanner {
             if let Some(token) = self.buffer.pop() {
                 return token.parse().ok().expect("Scanner: Parse failed");
             }
-            let mut input = String::new();
-            stdin().read_line(&mut input).expect("Scanner: Read failed");
-            self.buffer = input.split_ascii_whitespace().rev().map(String::from).collect();
+            let mut line = self.next_line();
+            line.reverse();
+            self.buffer = line;
         }
     }
     pub fn next_line(&self) -> Vec<String> {
