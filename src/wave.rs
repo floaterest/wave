@@ -57,15 +57,13 @@ impl Wave<'_> {
     // write frame data
     pub fn write(&mut self, freqs: &[f64], duration: f32) -> Result<()> {
         let nframes = (duration * self.frame_rate as f32) as u32;
-        let l = freqs.len() as f64;
-        let a = self.amplitude / l;
         let n = 2.0 * PI / self.frame_rate as f64;
 
         let mut bytes: Vec<u8> = Vec::with_capacity((nframes * self.frame_width as u32) as usize);
         (0..nframes).for_each(|i| {
             let sin = freqs.iter().map(|f| (f * n * i as f64).sin()).sum::<f64>();
             bytes.extend_from_slice(&unsafe {
-                transmute((a * &(self.fx)(i as f64 / nframes as f64) * sin) as i16)
+                transmute((self.amplitude * &(self.fx)(i as f64 / nframes as f64) * sin) as i16)
             } as &[u8; 2]);
         });
 
