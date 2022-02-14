@@ -7,6 +7,7 @@
 - [Usage](#usage)
     - [Input Example](#input-example)
     - [Output Example](#output-example)
+- [Programmer's Note](#programmers-note)
 
 # Usage
 - from executable: `wave < input.txt`
@@ -79,3 +80,13 @@
 https://user-images.githubusercontent.com/56704092/127914257-028eb4a0-e1af-43e1-bf91-83b52ca092c5.mp4
 
 
+
+# Programmer's Note
+- [`note.rs`](/src/note.rs)
+    - convert note to key number to frequency
+- [`wave.rs`](/src/wave.rs)
+    - `.wav` file structure
+    - combine sine waves to form chords
+    - convert literally anything into bytes (`[u8]`) using unsafe `transmute()`
+- [`scanner.rs`](/src/scanner.rs)
+    - read stdin/file and convert to any `FromStr` types
