@@ -1,21 +1,28 @@
 use std::fs::File;
 use std::slice::from_raw_parts;
 use std::mem::transmute;
-use std::f64::consts::PI;
 use std::io::{Result, Seek, SeekFrom, Write};
 
 pub struct Wave<'a> {
+    // number of samples/frames per second (fps)
     pub frame_rate: u32,
-    /// in bytes
-    pub frame_width: u16,
-    pub nchannels: u16,
-    pub file: File,
+    // maximum amplitude of a note
     pub amplitude: f64,
     /// curve function
     pub fx: &'a dyn Fn(f64) -> f64,
+
+    pub file: File,
+    /// in bytes
+    pub frame_width: u16,
+    /// number of channels
+    pub nchannels: u16,
+
     /// number of frames that are off beat
     offset: i8,
+    /// whether the next wave should start increasing
     inc: bool,
+    /// PI * 2.0 * frame rate
+    pi2_fps: f64,
 }
 
 impl Wave<'_> {
@@ -24,15 +31,18 @@ impl Wave<'_> {
             frame_rate,
             amplitude,
             fx,
+
+            file: File::create(fname).expect("Wave: Create file failed"),
             frame_width: 2,
             nchannels: 1,
-            file: File::create(fname).expect("Wave: Create file failed"),
+
             offset: 0,
             inc: false,
+            pi2_fps: 2.0 * std::f64::consts::PI / frame_rate as f64,
         }
     }
 
-    // write headers
+    /// write headers
     pub fn start(&mut self) -> Result<()> {
         self.file.write(&[
             82, 73, 70, 70, // RIFF
@@ -60,36 +70,49 @@ impl Wave<'_> {
         Ok(())
     }
 
-    // write frame data
+    fn calc(&self, &a: &f64, &x: &f64, &n: &f64, freqs: &[f64]) -> i16 {
+        (a * &(self.fx)(x / n) * freqs
+            .iter()
+            .map(|f| (f * self.pi2_fps * x).sin())
+            .sum::<f64>()
+        ) as i16
+    }
+
+    /// write frame data
     pub fn write(&mut self, freqs: &[f64], duration: f32) -> Result<()> {
         let nframes = (duration * self.frame_rate as f32) as u32;
-        let n = 2.0 * PI / self.frame_rate as f64;
+        // negative amplitude will make the wave start decreasing at start
         let a = if self.inc { self.amplitude } else { -self.amplitude };
-
-        let mut sines: Vec<i16> = (1..nframes).map(|i|
-            (a * &(self.fx)(i as f64 / nframes as f64) * freqs.iter().map(|f| (f * n * i as f64).sin()).sum::<f64>()) as i16
-        ).collect();
-        let pos = sines[sines.len() - 1] > 0;
-        self.inc = !pos;
-        let lpos = sines.iter().rposition(|s| (s < &0) == pos).unwrap() as i16;
+        let mut sines: Vec<i16> = (1..nframes)
+            .map(|i| self.calc(&a, &(i as f64), &(nframes as f64), freqs))
+            .collect();
+        // next wave should increase if current wave ends below 0
+        self.inc = sines[sines.len() - 1] < 0;
+        // find the left position where the wave passed 0
+        let lpos = sines.iter().rposition(|s| (s > &0) == self.inc).unwrap() as i16;
+        // find the right position by prolonging the wave
         let mut rpos = nframes as i16;
         loop {
-            let sin = (a * &(self.fx)(rpos as f64 / nframes as f64) * freqs.iter().map(|f| (f * n * rpos as f64).sin()).sum::<f64>()) as i16;
-            if (sin < 0) == pos {
-                break;
-            }
+            let sin = self.calc(&a, &(rpos as f64), &(nframes as f64), freqs);
+            // stop if the wave passed 0
+            if (sin > 0) == self.inc { break; }
+
             sines.push(sin);
             rpos += 1;
         }
-        let beat = nframes as i16 + self.offset as i16;
+        // the position where the wave should end at
+        let pos = nframes as i16 + self.offset as i16;
         // if left is closer than right
-        if beat - lpos < rpos - beat {
+        if pos - lpos < rpos - pos {
+            // write shortened wave and update offset
             self.file.write(unsafe {
                 from_raw_parts(sines.as_ptr() as *const u8, (lpos as usize + 1) * 2)
             })?;
             self.offset = (lpos - nframes as i16) as i8;
+            // when shortened, the last sample's position will switch from top/bottom to bottom/top
             self.inc = !self.inc;
         } else {
+            // write prolonged wave and update offset
             self.file.write(unsafe {
                 from_raw_parts(sines.as_ptr() as *const u8, sines.len() * 2)
             })?;
