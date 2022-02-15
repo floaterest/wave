@@ -23,6 +23,8 @@ pub struct Wave<'a> {
     inc: bool,
     /// PI * 2.0 * frame rate
     pi2_fps: f64,
+    /// whether should do extra work to smoothen the transition between notes
+    smooth: bool,
 }
 
 impl Wave<'_> {
@@ -39,6 +41,8 @@ impl Wave<'_> {
             offset: 0,
             inc: false,
             pi2_fps: 2.0 * std::f64::consts::PI / frame_rate as f64,
+            // don't need to smoothen the transition if each note ends with 0db
+            smooth: &fx(1.0) != &0.0,
         }
     }
 
@@ -86,38 +90,44 @@ impl Wave<'_> {
         let mut sines: Vec<i16> = (1..nframes)
             .map(|i| self.calc(&a, &(i as f64), &(nframes as f64), freqs))
             .collect();
-        // next wave should increase if current wave ends below 0
-        self.inc = sines[sines.len() - 1] < 0;
-        // find the left position where the wave passed 0
-        let lpos = sines.iter().rposition(|s| (s > &0) == self.inc).unwrap() as i16;
-        // find the right position by prolonging the wave
-        let mut rpos = nframes as i16;
-        loop {
-            let sin = self.calc(&a, &(rpos as f64), &(nframes as f64), freqs);
-            // stop if the wave passed 0
-            if (sin > 0) == self.inc { break; }
+        if self.smooth {
+            // next wave should increase if current wave ends below 0
+            self.inc = sines[sines.len() - 1] < 0;
+            // find the left position where the wave passed 0
+            let lpos = sines.iter().rposition(|s| (s > &0) == self.inc).unwrap() as i16;
+            // find the right position by prolonging the wave
+            let mut rpos = nframes as i16;
+            loop {
+                let sin = self.calc(&a, &(rpos as f64), &(nframes as f64), freqs);
+                // stop if the wave passed 0
+                if (sin > 0) == self.inc { break; }
 
-            sines.push(sin);
-            rpos += 1;
+                sines.push(sin);
+                rpos += 1;
+            }
+            // the position where the wave should end at
+            let pos = nframes as i16 + self.offset as i16;
+            // if left is closer than right
+            if pos - lpos < rpos - pos {
+                // write shortened wave and update offset
+                self.file.write(unsafe {
+                    from_raw_parts(sines.as_ptr() as *const u8, (lpos as usize + 1) * 2)
+                })?;
+                self.offset = (lpos - nframes as i16) as i8;
+                // when shortened, the last sample's position will switch from top/bottom to bottom/top
+                self.inc = !self.inc;
+
+                // stop the function
+                return Ok(());
+            } else {
+                // write prolonged wave and update offset
+                self.offset = (rpos - nframes as i16) as i8;
+            }
         }
-        // the position where the wave should end at
-        let pos = nframes as i16 + self.offset as i16;
-        // if left is closer than right
-        if pos - lpos < rpos - pos {
-            // write shortened wave and update offset
-            self.file.write(unsafe {
-                from_raw_parts(sines.as_ptr() as *const u8, (lpos as usize + 1) * 2)
-            })?;
-            self.offset = (lpos - nframes as i16) as i8;
-            // when shortened, the last sample's position will switch from top/bottom to bottom/top
-            self.inc = !self.inc;
-        } else {
-            // write prolonged wave and update offset
-            self.file.write(unsafe {
-                from_raw_parts(sines.as_ptr() as *const u8, sines.len() * 2)
-            })?;
-            self.offset = (rpos - nframes as i16) as i8;
-        }
+
+        self.file.write(unsafe {
+            from_raw_parts(sines.as_ptr() as *const u8, sines.len() * 2)
+        })?;
 
         Ok(())
     }
