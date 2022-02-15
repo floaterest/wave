@@ -18,7 +18,7 @@ pub struct Wave<'a> {
     pub nchannels: u16,
 
     /// number of frames that are off beat
-    offset: i8,
+    offset: i32,
     /// whether the next wave should start increasing
     inc: bool,
     /// PI * 2.0 * frame rate
@@ -74,6 +74,7 @@ impl Wave<'_> {
         Ok(())
     }
 
+    /// get y value of a sine wave with given x
     fn calc(&self, &a: &f64, &x: &f64, &n: &f64, freqs: &[f64]) -> i16 {
         (a * &(self.fx)(x / n) * freqs
             .iter()
@@ -84,7 +85,7 @@ impl Wave<'_> {
 
     /// write frame data
     pub fn write(&mut self, freqs: &[f64], duration: f32) -> Result<()> {
-        let nframes = (duration * self.frame_rate as f32) as u32;
+        let nframes = (duration * self.frame_rate as f32) as i32;
         // negative amplitude will make the wave start decreasing at start
         let a = if self.inc { self.amplitude } else { -self.amplitude };
         let mut sines: Vec<i16> = (1..nframes)
@@ -94,9 +95,9 @@ impl Wave<'_> {
             // next wave should increase if current wave ends below 0
             self.inc = sines[sines.len() - 1] < 0;
             // find the left position where the wave passed 0
-            let lpos = sines.iter().rposition(|s| (s > &0) == self.inc).unwrap() as i16;
+            let lpos = sines.iter().rposition(|s| (s > &0) == self.inc).unwrap() as i32;
             // find the right position by prolonging the wave
-            let mut rpos = nframes as i16;
+            let mut rpos = nframes;
             loop {
                 let sin = self.calc(&a, &(rpos as f64), &(nframes as f64), freqs);
                 // stop if the wave passed 0
@@ -106,14 +107,14 @@ impl Wave<'_> {
                 rpos += 1;
             }
             // the position where the wave should end at
-            let pos = nframes as i16 + self.offset as i16;
+            let pos = nframes + self.offset;
             // if left is closer than right
             if pos - lpos < rpos - pos {
                 // write shortened wave and update offset
                 self.file.write(unsafe {
                     from_raw_parts(sines.as_ptr() as *const u8, (lpos as usize + 1) * 2)
                 })?;
-                self.offset = (lpos - nframes as i16) as i8;
+                self.offset = lpos - nframes;
                 // when shortened, the last sample's position will switch from top/bottom to bottom/top
                 self.inc = !self.inc;
 
@@ -121,7 +122,7 @@ impl Wave<'_> {
                 return Ok(());
             } else {
                 // write prolonged wave and update offset
-                self.offset = (rpos - nframes as i16) as i8;
+                self.offset = rpos - nframes;
             }
         }
 
