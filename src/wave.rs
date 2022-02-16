@@ -1,17 +1,30 @@
 use std::fs::File;
+use std::slice::from_raw_parts;
 use std::mem::transmute;
-use std::f64::consts::PI;
 use std::io::{Result, Seek, SeekFrom, Write};
 
 pub struct Wave<'a> {
+    // number of samples/frames per second (fps)
     pub frame_rate: u32,
-    /// in bytes
-    pub frame_width: u16,
-    pub nchannels: u16,
-    pub file: File,
+    // maximum amplitude of a note
     pub amplitude: f64,
     /// curve function
     pub fx: &'a dyn Fn(f64) -> f64,
+
+    pub file: File,
+    /// in bytes
+    pub frame_width: u16,
+    /// number of channels
+    pub nchannels: u16,
+
+    /// number of frames that are off beat
+    offset: i32,
+    /// whether the next wave should start increasing
+    inc: bool,
+    /// PI * 2.0 * frame rate
+    pi2_fps: f64,
+    /// whether should do extra work to smoothen the transition between notes
+    smooth: bool,
 }
 
 impl Wave<'_> {
@@ -20,13 +33,20 @@ impl Wave<'_> {
             frame_rate,
             amplitude,
             fx,
+
+            file: File::create(fname).expect("Wave: Create file failed"),
             frame_width: 2,
             nchannels: 1,
-            file: File::create(fname).expect("Wave: Create file failed"),
+
+            offset: 0,
+            inc: false,
+            pi2_fps: 2.0 * std::f64::consts::PI / frame_rate as f64,
+            // don't need to smoothen the transition if each note ends with 0db
+            smooth: &fx(1.0) != &0.0,
         }
     }
 
-    // write headers
+    /// write headers
     pub fn start(&mut self) -> Result<()> {
         self.file.write(&[
             82, 73, 70, 70, // RIFF
@@ -54,22 +74,61 @@ impl Wave<'_> {
         Ok(())
     }
 
-    // write frame data
+    /// get y value of a sine wave with given x
+    fn calc(&self, &a: &f64, &x: &f64, &n: &f64, freqs: &[f64]) -> i16 {
+        (a * &(self.fx)(x / n) * freqs
+            .iter()
+            .map(|f| (f * self.pi2_fps * x).sin())
+            .sum::<f64>()
+        ) as i16
+    }
+
+    /// write frame data
     pub fn write(&mut self, freqs: &[f64], duration: f32) -> Result<()> {
-        let nframes = (duration * self.frame_rate as f32) as u32;
-        let l = freqs.len() as f64;
-        let a = self.amplitude / l;
-        let n = 2.0 * PI / self.frame_rate as f64;
+        let nframes = (duration * self.frame_rate as f32) as i32;
+        // negative amplitude will make the wave start decreasing at start
+        let a = if self.inc { self.amplitude } else { -self.amplitude };
+        let mut sines: Vec<i16> = (1..nframes)
+            .map(|i| self.calc(&a, &(i as f64), &(nframes as f64), freqs))
+            .collect();
+        if self.smooth {
+            // next wave should increase if current wave ends below 0
+            self.inc = sines[sines.len() - 1] < 0;
+            // find the left position where the wave passed 0
+            let lpos = sines.iter().rposition(|s| (s > &0) == self.inc).unwrap() as i32;
+            // find the right position by prolonging the wave
+            let mut rpos = nframes;
+            loop {
+                let sin = self.calc(&a, &(rpos as f64), &(nframes as f64), freqs);
+                // stop if the wave passed 0
+                if (sin > 0) == self.inc { break; }
 
-        let mut bytes: Vec<u8> = Vec::with_capacity((nframes * self.frame_width as u32) as usize);
-        (0..nframes).for_each(|i| {
-            let sin = freqs.iter().map(|f| (f * n * i as f64).sin()).sum::<f64>();
-            bytes.extend_from_slice(&unsafe {
-                transmute((a * &(self.fx)(i as f64 / nframes as f64) * sin) as i16)
-            } as &[u8; 2]);
-        });
+                sines.push(sin);
+                rpos += 1;
+            }
+            // the position where the wave should end at
+            let pos = nframes + self.offset;
+            // if left is closer than right
+            if pos - lpos < rpos - pos {
+                // write shortened wave and update offset
+                self.file.write(unsafe {
+                    from_raw_parts(sines.as_ptr() as *const u8, (lpos as usize + 1) * 2)
+                })?;
+                self.offset = lpos - nframes;
+                // when shortened, the last sample's position will switch from top/bottom to bottom/top
+                self.inc = !self.inc;
 
-        self.file.write(&bytes)?;
+                // stop the function
+                return Ok(());
+            } else {
+                // write prolonged wave and update offset
+                self.offset = rpos - nframes;
+            }
+        }
+
+        self.file.write(unsafe {
+            from_raw_parts(sines.as_ptr() as *const u8, sines.len() * 2)
+        })?;
 
         Ok(())
     }
