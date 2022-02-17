@@ -5,8 +5,10 @@
 # Table of Contents
 
 - [Usage](#usage)
-    - [Input Example](#input-example)
-    - [Output Example](#output-example)
+	- [Input Example](#input-example)
+	- [Output Example](#output-example)
+- [Features](#features)
+	- [Self Adjust](#self-adjust)
 - [Programmer's Note](#programmers-note)
 
 # Usage
@@ -80,6 +82,15 @@
 https://user-images.githubusercontent.com/56704092/127914257-028eb4a0-e1af-43e1-bf91-83b52ca092c5.mp4
 
 
+
+# Features
+## Self Adjust
+When the provided curve function does not end with `0.0`, the program will try to connect the notes by prolonging/shortening a few frames (like `±5ms` maximum) to make them always end near `0db`. This way, the next note can start at 0db and create a smoother transition.
+
+|          Before           |         After          |
+| :-----------------------: | :--------------------: |
+| ![](/assets/smoothnt.png) | ![](assets/smooth.png) |
+> By having a few frames of trade-off, the transition between 2 notes are smoothened
 
 # Programmer's Note
 - [`note.rs`](/src/note.rs)
