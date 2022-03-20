@@ -1,37 +1,33 @@
 mod note;
-mod scanner;
 mod wave;
 
-use std::io::Result;
-use scanner::Scanner;
+use std::env;
+use std::io::{BufRead, BufReader, Result};
 use wave::Wave;
 use std::f64::consts::PI;
+use std::fs::File;
 
 fn main() -> Result<()> {
-    let mut sc = Scanner::default();
-    let ampl: f64 = sc.next();
-    let fps: u32 = sc.next();
-    let nbpm: usize = sc.next();
-    let fname: String = sc.next();
+    let args: Vec<String> = env::args().collect();
+    let (input, output) = if args.len() > 2 {
+        (String::from(&args[1]), String::from(&args[2]))
+    } else {
+        (String::from("input.txt"), String::from("output.wav"))
+    };
 
-    let fx = |n: f64| (n * PI).cos() * 0.5 + 0.5;
-    let mut w = Wave::new(fps, ampl, &fname, &fx);
+    let amp = i16::MAX as f64 / 6.0; // maximum 6 notes at a time
+    let rate = 12000;
+    let fx = |x: f64| (x * PI).cos() * 0.5 + 0.5;
+    let mut w = Wave::new(rate, amp, File::create(output)?, &fx);
+    let file = File::open(input)?;
+    let r = BufReader::new(file);
+
     w.start()?;
-    for _ in 0..nbpm {
-        let bpm: f32 = sc.next();
-        let nlines: usize = sc.next();
-        for _ in 0..nlines {
-            let mut line = sc.next_line();
-            let beat: f32 = line.pop().unwrap().parse().unwrap();
-            let freqs: Vec<f64> = if line.len() == 0 {
-                Vec::new()
-            } else {
-                line.iter().map(|n| note::ntof(n.as_bytes())).collect()
-            };
-            w.write(&freqs, beat * 60.0 / bpm)?;
-        }
-    }
+    r.lines().map(|l| l.unwrap())
+        .map(|l| String::from(l.trim()))
+        .filter(|l| l.len() > 0)
+        .filter(|l| l.bytes().next().unwrap().is_ascii_digit())
+        .for_each(|l| w.process(&l.split_whitespace().collect::<Vec<&str>>()).unwrap());
     w.finish()?;
-
     Ok(())
 }
