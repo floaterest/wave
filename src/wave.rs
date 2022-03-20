@@ -5,16 +5,15 @@ use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
 use crate::note::ntof;
 
-
 pub struct Wave<'a> {
-    /// curve function
-    fx: &'a dyn Fn(f64) -> f64,
+    /// output file (`.wav`)
+    file: File,
     /// number of samples/frames per second (fps)
     fps: u32,
     /// maximum amplitude of a note
     amplitude: f64,
-    /// output file (`.wav`)
-    file: File,
+    /// curve function in [0.0, 1.0)
+    curve: &'a dyn Fn(f64) -> f64,
 
     /// current bpm
     bpm: i32,
@@ -27,18 +26,20 @@ pub struct Wave<'a> {
 }
 
 impl Wave<'_> {
-    pub fn new<'a>(frame_rate: u32, amplitude: f64, out: File, fx: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
+    pub fn new<'a>(out: File, fps: u32, amplitude: f64, fx: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
         Wave {
-            fx,
+            file: out,
+            fps,
+            amplitude,
+            curve: fx,
+
             bpm: 0,
             pos: 0,
             buffer: Vec::new(),
-            fps: frame_rate,
-            amplitude,
-            file: out,
-            pi2_fps: 2.0 * PI / frame_rate as f64,
+            pi2_fps: 2.0 * PI / fps as f64,
         }
     }
+
     /// parse the length of a note and return number of frames
     fn parse_len(&self, token: &str) -> usize {
         let length = match token.len() {
@@ -57,6 +58,10 @@ impl Wave<'_> {
         };
         //     ((   duration in seconds   )  number of frames)
         return ((length * 240.0 / self.bpm as f64) * self.fps as f64) as usize;
+    }
+    /// generate sine value (y) at x
+    fn sine(&self, a: f64, x: f64, n: f64, freq: f64) -> i16 {
+        (a * (self.curve)(x / n) * (freq * self.pi2_fps * x).sin()) as i16
     }
 
     /// write headers
@@ -88,12 +93,6 @@ impl Wave<'_> {
 
         Ok(())
     }
-
-    /// generate sine value (y) at x
-    fn sine(&self, a: f64, x: f64, n: f64, freq: f64) -> i16 {
-        (a * (self.fx)(x / n) * (freq * self.pi2_fps * x).sin()) as i16
-    }
-
     /// add a note to existing waveform (buffer)
     fn append(&mut self, frame_count: usize, note: &str) {
         assert_ne!(frame_count, 0, "Frame count is 0 at {}!", note);
@@ -109,13 +108,6 @@ impl Wave<'_> {
         // for (i, &y) in frames.iter().enumerate() {
         //     self.buffer[i] += y;
         // }
-    }
-    /// write frames and shift position
-    fn flush(&mut self, frame_count: usize) -> Result<()> {
-        self.pos += frame_count as u64;
-        let wave: Vec<_> = self.buffer.drain(..frame_count).collect();
-        self.file.write(unsafe { from_raw_parts(wave.as_ptr() as *const u8, wave.len() * size_of::<i16>()) })?;
-        Ok(())
     }
     /// process a line of input
     pub fn process(&mut self, line: &[&str]) -> Result<()> {
@@ -150,7 +142,13 @@ impl Wave<'_> {
         }
         Ok(())
     }
-
+    /// write frames and shift position
+    fn flush(&mut self, frame_count: usize) -> Result<()> {
+        self.pos += frame_count as u64;
+        let wave: Vec<_> = self.buffer.drain(..frame_count).collect();
+        self.file.write(unsafe { from_raw_parts(wave.as_ptr() as *const u8, wave.len() * size_of::<i16>()) })?;
+        Ok(())
+    }
     /// go back and write file size
     pub fn finish(&mut self) -> Result<()> {
         // empty buffer
