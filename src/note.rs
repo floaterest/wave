@@ -30,6 +30,10 @@ fn ntoi(n: &[u8]) -> u8 {
 
 /// convert note to its frequency
 pub fn ntof(n: &[u8]) -> f64 {
-    // https://en.wikipedia.org/wiki/Piano_key_frequencies
-    2f64.powf((ntoi(n) as f64 - 49.0) / 12.0) * 440.0
+    if n[0].is_ascii_alphabetic() {
+        // https://en.wikipedia.org/wiki/Piano_key_frequencies
+        2f64.powf((ntoi(n) as f64 - 49.0) / 12.0) * 440.0
+    } else {
+        0.0 // rest
+    }
 }

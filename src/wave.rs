@@ -126,7 +126,16 @@ impl Wave<'_> {
             let mut offset = 0;
             let mut frame_count = 0;
             line.iter().for_each(
-                |token| if token.bytes().next().unwrap().is_ascii_alphabetic() {
+                // if is note length
+                |token| if token.bytes().next().unwrap().is_ascii_digit() {
+                    // if this length is the first of the line
+                    if frame_count == 0 {
+                        offset = self.parse_len(token);
+                        frame_count = offset;
+                    } else {
+                        frame_count = self.parse_len(token);
+                    }
+                } else { // parse token as note
                     // len (in beats) == beat * 4
                     //      semibreve == 1 == 1 beats
                     //      quaver == 0.125 == 0.5 beats
@@ -135,12 +144,6 @@ impl Wave<'_> {
                         self.buffer.resize(frame_count, 0);
                     }
                     self.append(frame_count, token);
-                } else if frame_count == 0 {
-                    // first note length of the line
-                    offset = self.parse_len(token);
-                    frame_count = offset;
-                } else {
-                    frame_count = self.parse_len(token);
                 }
             );
             return Ok(self.flush(offset)?)
