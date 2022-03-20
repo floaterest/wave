@@ -17,8 +17,8 @@ fn main() -> Result<()> {
 
     let amp = i16::MAX as f64 / 6.0; // maximum 6 notes at a time
     let rate = 12000;
-    let fx = |x: f64| (x * PI).cos() * 0.5 + 0.5;
-    let mut w = Wave::new(rate, amp, File::create(output)?, &fx);
+    let curve = |x: f64| (x * PI).cos() * 0.5 + 0.5;
+    let mut w = Wave::new(File::create(output)?, rate, amp, &curve);
     let file = File::open(input)?;
     let r = BufReader::new(file);
 
