@@ -15,10 +15,10 @@ fn main() -> Result<()> {
         (String::from("input.txt"), String::from("output.wav"))
     };
 
-    let amp = i16::MAX as f64 / 6.0; // maximum 6 notes at a time
-    let rate = 12000;
+    let amplitude = i16::MAX as f64 / 6.0; // maximum 6 notes at a time
+    let fps = 12000;
     let curve = |x: f64| (x * PI).cos() * 0.5 + 0.5;
-    let mut w = Wave::new(File::create(output)?, rate, amp, &curve);
+    let mut w = Wave::new(File::create(output)?, fps, amplitude, &curve);
     let file = File::open(input)?;
     let r = BufReader::new(file);
 
