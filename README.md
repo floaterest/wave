@@ -1,15 +1,5 @@
-# Wave <!-- omit in toc -->
+# Wave
 > Generate `.wav` file from user input
-
-<!-- omit in toc -->
-# Table of Contents
-
-- [Usage](#usage)
-	- [Input Example](#input-example)
-	- [Output Example](#output-example)
-- [Features](#features)
-	- [Self Adjust](#self-adjust)
-- [Programmer's Note](#programmers-note)
 
 # Usage
 - from executable: `wave < input.txt`
