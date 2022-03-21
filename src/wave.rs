@@ -26,12 +26,12 @@ pub struct Wave<'a> {
 }
 
 impl Wave<'_> {
-    pub fn new<'a>(out: File, fps: u32, amplitude: f64, fx: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
+    pub fn new<'a>(destination: File, fps: u32, amplitude: f64, curve: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
         Wave {
-            file: out,
+            file: destination,
             fps,
             amplitude,
-            curve: fx,
+            curve,
 
             bpm: 0,
             pos: 0,
