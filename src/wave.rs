@@ -3,6 +3,7 @@ use std::fs::File;
 use std::slice::from_raw_parts;
 use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
+use crate::curves::constant;
 use crate::note::ntof;
 
 pub struct Wave<'a> {
@@ -60,8 +61,8 @@ impl Wave<'_> {
         return ((length * 240.0 / self.bpm as f64) * self.fps as f64) as usize;
     }
     /// generate sine value (y) at x
-    fn sine(&self, a: f64, x: f64, n: f64, freq: f64) -> i16 {
-        (a * (self.curve)(x / n) * (freq * self.pi2_fps * x).sin()) as i16
+    fn sine(&self, a: f64, x: f64, n: f64, freq: f64, curve: &dyn Fn(f64) -> f64) -> i16 {
+        (a * curve(x / n) * (freq * self.pi2_fps * x).sin()) as i16
     }
 
     /// write headers
@@ -94,7 +95,7 @@ impl Wave<'_> {
         Ok(())
     }
     /// add a note to existing waveform (buffer)
-    fn append(&mut self, frame_count: usize, note: &str) {
+    fn append(&mut self, frame_count: usize, note: &str, slur: bool) {
         assert_ne!(frame_count, 0, "Frame count is 0 at {}!", note);
         assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", note);
         let freq = ntof(note.as_bytes());
@@ -102,8 +103,13 @@ impl Wave<'_> {
         // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
         let amplitude = self.amplitude;
         let frames = (0..frame_count)
-            .map(|i| self.sine(amplitude, i as f64, frame_count as f64, freq))
-            .collect::<Vec<_>>();
+            .map(|i| self.sine(
+                amplitude,
+                i as f64,
+                frame_count as f64,
+                freq,
+                if slur { &constant } else { self.curve },
+            )).collect::<Vec<_>>();
         frames.iter().enumerate().for_each(|(i, y)| self.buffer[i] += y);
         // for (i, &y) in frames.iter().enumerate() {
         //     self.buffer[i] += y;
@@ -117,9 +123,13 @@ impl Wave<'_> {
         } else {
             let mut offset = 0;
             let mut frame_count = 0;
+            let mut slur = false;
             line.iter().for_each(
                 // if is note length
                 |token| if token.bytes().next().unwrap().is_ascii_digit() {
+                    // 4- means quaver with slur to the next note
+                    slur = token.ends_with('-');
+                    let token = if slur { token.strip_suffix('-').unwrap() } else { token };
                     // if this length is the first of the line
                     if frame_count == 0 {
                         offset = self.parse_len(token);
@@ -135,7 +145,7 @@ impl Wave<'_> {
                     if frame_count > self.buffer.len() {
                         self.buffer.resize(frame_count, 0);
                     }
-                    self.append(frame_count, token);
+                    self.append(frame_count, token, slur);
                 }
             );
             return Ok(self.flush(offset)?)
