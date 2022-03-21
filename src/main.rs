@@ -1,11 +1,13 @@
 mod note;
 mod wave;
+mod curves;
 
 use std::env;
 use std::io::{BufRead, BufReader, Result};
 use wave::Wave;
 use std::f64::consts::PI;
 use std::fs::File;
+use crate::curves::sinusoid;
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -17,8 +19,7 @@ fn main() -> Result<()> {
 
     let amplitude = i16::MAX as f64 / 6.0; // maximum 6 notes at a time
     let fps = 12000;
-    let curve = |x: f64| (x * PI).cos() * 0.5 + 0.5;
-    let mut w = Wave::new(File::create(output)?, fps, amplitude, &curve);
+    let mut w = Wave::new(File::create(output)?, fps, amplitude, &sinusoid);
     let file = File::open(input)?;
     let r = BufReader::new(file);
 
