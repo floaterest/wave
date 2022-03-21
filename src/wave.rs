@@ -1,53 +1,74 @@
+use std::f64::consts::PI;
 use std::fs::File;
 use std::slice::from_raw_parts;
-use std::mem::transmute;
+use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
+use crate::curves::constant;
+use crate::note::ntof;
 
 pub struct Wave<'a> {
-    // number of samples/frames per second (fps)
-    pub frame_rate: u32,
-    // maximum amplitude of a note
-    pub amplitude: f64,
-    /// curve function
-    pub fx: &'a dyn Fn(f64) -> f64,
+    /// output file (`.wav`)
+    file: File,
+    /// number of samples/frames per second (fps)
+    fps: u32,
+    /// maximum amplitude of a note
+    amplitude: f64,
+    /// curve function in [0.0, 1.0)
+    curve: &'a dyn Fn(f64) -> f64,
 
-    pub file: File,
-    /// in bytes
-    pub frame_width: u16,
-    /// number of channels
-    pub nchannels: u16,
-
-    /// number of frames that are off beat
-    offset: i32,
-    /// whether the next wave should start increasing
-    inc: bool,
+    /// current bpm
+    bpm: i32,
+    /// current position
+    pos: u64,
+    /// waveform buffer
+    buffer: Vec<i16>,
     /// PI * 2.0 * frame rate
     pi2_fps: f64,
-    /// whether should do extra work to smoothen the transition between notes
-    smooth: bool,
 }
 
 impl Wave<'_> {
-    pub fn new<'a>(frame_rate: u32, amplitude: f64, fname: &str, fx: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
+    pub fn new<'a>(destination: File, fps: u32, amplitude: f64, curve: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
         Wave {
-            frame_rate,
+            file: destination,
+            fps,
             amplitude,
-            fx,
+            curve,
 
-            file: File::create(fname).expect("Wave: Create file failed"),
-            frame_width: 2,
-            nchannels: 1,
-
-            offset: 0,
-            inc: false,
-            pi2_fps: 2.0 * std::f64::consts::PI / frame_rate as f64,
-            // don't need to smoothen the transition if each note ends with 0db
-            smooth: &fx(1.0) != &0.0,
+            bpm: 0,
+            pos: 0,
+            buffer: Vec::new(),
+            pi2_fps: 2.0 * PI / fps as f64,
         }
+    }
+
+    /// parse the length of a note and return number of frames
+    fn parse_len(&self, token: &str) -> usize {
+        let length = match token.len() {
+            // e.g. "8" for quaver
+            1 if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
+            // e.g. "4*" for dotted crotchet
+            2 if token.ends_with('*') => 1.5 / token.strip_suffix('*').unwrap().parse::<f64>().unwrap(),
+            // e.g. "8+16" for a tie from quaver to semiquaver
+            3 if token.bytes().all(|ch| ch.is_ascii_digit() || ch == b'+') => token.bytes()
+                .filter(|&b| b.is_ascii_digit())
+                .map(|b| 1.0 / (b - b'0') as f64).sum(),
+            _ => {
+                assert!(false, "Unknown token as note length: {:?}", token);
+                0.0
+            },
+        };
+        //     ((   duration in seconds   )  number of frames)
+        return ((length * 240.0 / self.bpm as f64) * self.fps as f64) as usize;
+    }
+    /// generate sine value (y) at x
+    fn sine(&self, a: f64, x: f64, n: f64, freq: f64, curve: &dyn Fn(f64) -> f64) -> i16 {
+        (a * curve(x / n) * (freq * self.pi2_fps * x).sin()) as i16
     }
 
     /// write headers
     pub fn start(&mut self) -> Result<()> {
+        let nchannels = 1u16;
+        let frame_width = 16u16;
         self.file.write(&[
             82, 73, 70, 70, // RIFF
             0, 0, 0, 0, // file size
@@ -56,15 +77,15 @@ impl Wave<'_> {
             16, 0, 0, 0, // fmt chunk size
             1, 0, // format tag (PCM)
         ])?;
-        self.file.write(&unsafe { transmute(self.nchannels) } as &[u8; 2])?;
+        self.file.write(&unsafe { transmute(nchannels) } as &[u8; 2])?;
         // frame rate (fps)
-        self.file.write(&unsafe { transmute(self.frame_rate) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute(self.fps) } as &[u8; 4])?;
         // byte rate
-        self.file.write(&unsafe { transmute(self.frame_rate * self.frame_width as u32) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute(self.fps * frame_width as u32) } as &[u8; 4])?;
         // block align
         self.file.write(&[2, 0])?;
         // bits per frame
-        self.file.write(&unsafe { transmute(self.frame_width * 8) } as &[u8; 2])?;
+        self.file.write(&unsafe { transmute(frame_width) } as &[u8; 2])?;
 
         self.file.write(&[
             100, 97, 116, 97, // data
@@ -73,73 +94,81 @@ impl Wave<'_> {
 
         Ok(())
     }
-
-    /// get y value of a sine wave with given x
-    fn calc(&self, &a: &f64, &x: &f64, &n: &f64, freqs: &[f64]) -> i16 {
-        (a * &(self.fx)(x / n) * freqs
-            .iter()
-            .map(|f| (f * self.pi2_fps * x).sin())
-            .sum::<f64>()
-        ) as i16
+    /// add a note to existing waveform (buffer)
+    fn append(&mut self, frame_count: usize, note: &str, slur: bool) {
+        assert_ne!(frame_count, 0, "Frame count is 0 at {}!", note);
+        assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", note);
+        let freq = ntof(note.as_bytes());
+        // negative amplitude will make wave decrease on start
+        // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
+        let amplitude = self.amplitude;
+        let frames = (0..frame_count)
+            .map(|i| self.sine(
+                amplitude,
+                i as f64,
+                frame_count as f64,
+                freq,
+                if slur { &constant } else { self.curve },
+            )).collect::<Vec<_>>();
+        frames.iter().enumerate().for_each(|(i, y)| self.buffer[i] += y);
+        // for (i, &y) in frames.iter().enumerate() {
+        //     self.buffer[i] += y;
+        // }
     }
-
-    /// write frame data
-    pub fn write(&mut self, freqs: &[f64], duration: f32) -> Result<()> {
-        let nframes = (duration * self.frame_rate as f32) as i32;
-        // negative amplitude will make the wave start decreasing at start
-        let a = if self.inc { self.amplitude } else { -self.amplitude };
-        let mut sines: Vec<i16> = (1..nframes)
-            .map(|i| self.calc(&a, &(i as f64), &(nframes as f64), freqs))
-            .collect();
-        if self.smooth {
-            // next wave should increase if current wave ends below 0
-            self.inc = sines[sines.len() - 1] < 0;
-            // find the left position where the wave passed 0
-            let lpos = sines.iter().rposition(|s| (s > &0) == self.inc).unwrap() as i32;
-            // find the right position by prolonging the wave
-            let mut rpos = nframes;
-            loop {
-                let sin = self.calc(&a, &(rpos as f64), &(nframes as f64), freqs);
-                // stop if the wave passed 0
-                if (sin > 0) == self.inc { break; }
-
-                sines.push(sin);
-                rpos += 1;
-            }
-            // the position where the wave should end at
-            let pos = nframes + self.offset;
-            // if left is closer than right
-            if pos - lpos < rpos - pos {
-                // write shortened wave and update offset
-                self.file.write(unsafe {
-                    from_raw_parts(sines.as_ptr() as *const u8, (lpos as usize + 1) * 2)
-                })?;
-                self.offset = lpos - nframes;
-                // when shortened, the last sample's position will switch from top/bottom to bottom/top
-                self.inc = !self.inc;
-
-                // stop the function
-                return Ok(());
-            } else {
-                // write prolonged wave and update offset
-                self.offset = rpos - nframes;
-            }
+    /// process a line of input
+    pub fn process(&mut self, line: &[&str]) -> Result<()> {
+        // if the line specifies the bpm
+        if line.len() == 1 && line[0].bytes().all(|b| b.is_ascii_digit()) {
+            self.bpm = line[0].parse().unwrap();
+        } else {
+            let mut offset = 0;
+            let mut frame_count = 0;
+            let mut slur = false;
+            line.iter().for_each(
+                // if is note length
+                |token| if token.bytes().next().unwrap().is_ascii_digit() {
+                    // 4- means quaver with slur to the next note
+                    slur = token.ends_with('-');
+                    let token = if slur { token.strip_suffix('-').unwrap() } else { token };
+                    // if this length is the first of the line
+                    if frame_count == 0 {
+                        offset = self.parse_len(token);
+                        frame_count = offset;
+                    } else {
+                        frame_count = self.parse_len(token);
+                    }
+                } else { // parse token as note
+                    // len (in beats) == beat * 4
+                    //      semibreve == 1 == 1 beats
+                    //      quaver == 0.125 == 0.5 beats
+                    // dur (in seconds) = len * (60 / bpm) = len * (60 * second / beat)
+                    if frame_count > self.buffer.len() {
+                        self.buffer.resize(frame_count, 0);
+                    }
+                    self.append(frame_count, token, slur);
+                }
+            );
+            return Ok(self.flush(offset)?)
         }
-
-        self.file.write(unsafe {
-            from_raw_parts(sines.as_ptr() as *const u8, sines.len() * 2)
-        })?;
-
         Ok(())
     }
-
+    /// write frames and shift position
+    fn flush(&mut self, frame_count: usize) -> Result<()> {
+        self.pos += frame_count as u64;
+        let wave: Vec<_> = self.buffer.drain(..frame_count).collect();
+        self.file.write(unsafe { from_raw_parts(wave.as_ptr() as *const u8, wave.len() * size_of::<i16>()) })?;
+        Ok(())
+    }
     /// go back and write file size
     pub fn finish(&mut self) -> Result<()> {
-        let sz: u64 = self.file.metadata()?.len();
+        // empty buffer
+        self.flush(self.buffer.len())?;
+
+        let size: u64 = self.file.metadata()?.len();
         self.file.seek(SeekFrom::Start(4))?;
-        self.file.write(&unsafe { transmute(sz as u32) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute(size as u32) } as &[u8; 4])?;
         self.file.seek(SeekFrom::Start(40))?;
-        self.file.write(&unsafe { transmute((sz - 36) as u32) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute((size - 36) as u32) } as &[u8; 4])?;
 
         Ok(())
     }
