@@ -22,7 +22,7 @@ comments can be used for:
     - pages
 - indented folding
 
-<details open><summary>Example: use comments to separate bars and beams with indentation</summary>
+<details><summary>Example: use comments to separate bars and beams with indentation</summary>
 
 ![](../assets/comment.png)
 ```
@@ -79,4 +79,4 @@ comments can be used for:
 ```
 <details>
 
-<details><summary></summary><details>
+<!-- <details><summary></summary><details> -->
