@@ -77,6 +77,15 @@ comments can be used for:
 	8 a4
 	8 c#5
 ```
-<details>
+</details>
+
+## BPM
+> any line that only contains a single integer
+
+the BPM line can be used for:
+
+- changing the tempo in the middle of the piece
+
+N.B. the first non-comment line must be a BPM line to set the initial tempo
 
 <!-- <details><summary></summary><details> -->
