@@ -89,3 +89,7 @@ the BPM line can be used for:
 N.B. the first non-comment line must be a BPM line to set the initial tempo
 
 <!-- <details><summary></summary><details> -->
+
+## Chords/Notes
+> any line that contains at least 2 non-whitespace characters separated by whitespace and starts with an integer
+
