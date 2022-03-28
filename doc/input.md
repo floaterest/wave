@@ -1,14 +1,13 @@
 # Input Format
-## General
-  
-each line of the input file can be any of the following (after being trimmed):
+Each line of the input file must be any of the following (after being trimmed):
 
 |           Description            | Regex Representation |     How the Program Will Interpret It     |       Example        |
 | :------------------------------: | :------------------: | :---------------------------------------: | :------------------: |
 |         empty/whitespace         |       `^\s*$`        |                  ignore                   |         `\t`         |
 | starts with non-digit characters |        `^\D`         | ignore (treated as [comments](#comments)) | `==== anything ====` |
 |    contains only one integer     |      `^(\d+)$`       |            set new BPM to `$1`            |        `200`         |
-|     `<chord> [<chord> ...]`      |      see below       |                 see below                 |      see below       |
+|               else               |                      |     see [Chords/Notes](#chordsnotes)      |    `4 c#4 2 c#2`     |
+
 
 ## Comments
 > any line that doen't start with an ascii digit character
