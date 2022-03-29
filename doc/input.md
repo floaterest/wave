@@ -109,3 +109,37 @@ where:
     - `[a-g]b[0-9]` for a [flat](https://en.wikipedia.org/wiki/Flat_(music)) note (e.g. `bb2` for B♭<sub>2</sub>)
     - `[a-g]#[0-9]` for a [sharp](https://en.wikipedia.org/wiki/Sharp_(music)) note (e.g. `f#3` for F♯<sub>3</sub>)
     - `[^a-z\s]` for a [rest](https://en.wikipedia.org/wiki/Rest_(music)) (e.g. `.` `\` `-` )
+
+<!-- <details><summary></summary></details> -->
+
+<details open><summary>Example: rests and ties</summary>
+
+![](../assets/rest%26tie.png)
+```
+164
+== bass ==     == treble ==
+4 c#2 c#3      2 c#4 c#5
+4 \
+8 c#2 c#3      2+4 g#3 g#4
+8 c#2 c#3
+4 \
+
+4 c#2 c#3
+4 c#2 c#3      4 c#4
+8 c#2 c#3      4 d#4
+8 c#2 c#3
+4                e4
+
+4 c#2 c#3      2 f#4 1+4 a4
+4 \
+8 c#2 c#3      2+4 c#4
+8 c#2 c#3
+4 \
+
+4 c#2 c#3
+4 c#2 c#3      4 f#4
+8 c#2 c#3      4 g#4
+8 c#2 c#3
+4                b4
+```
+</details>
