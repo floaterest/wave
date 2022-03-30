@@ -110,7 +110,7 @@ where:
     - `[a-g]#[0-9]` for a [sharp](https://en.wikipedia.org/wiki/Sharp_(music)) note (e.g. `f#3` for F♯<sub>3</sub>)
     - `[^a-z0-9\s]` for a [rest](https://en.wikipedia.org/wiki/Rest_(music)) (e.g. `.` `\` `-` )
 
-<details open><summary>Example: rests and ties</summary>
+<details><summary>Example: rests and ties</summary>
 
 ![](../assets/rest%26tie.png)
 ```
@@ -142,7 +142,7 @@ where:
 ```
 </details>
 
-<details open><summary>Example: dotted notes and ties</summary>
+<details><summary>Example: dotted notes and ties</summary>
 
 ![](../assets/dotted&tie.png)
 ```
