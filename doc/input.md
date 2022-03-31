@@ -114,6 +114,7 @@ where:
 
 ![](../assets/rest%26tie.png)
 ```
+== BPM  ==
 164
 == bass ==     == treble ==
 4 c#2 c#3      2 c#4 c#5
@@ -146,6 +147,7 @@ where:
 
 ![](../assets/dotted&tie.png)
 ```
+==== BPM ====
 175
 
 1   ab4 c5 f5
