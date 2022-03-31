@@ -5,7 +5,7 @@ Each line of the input file must be any of the following (after being trimmed):
 | :------------------------------: | :------------------: | :---------------------------------------: | :------------------: |
 |         empty/whitespace         |       `^\s*$`        |                  ignore                   |         `\t`         |
 | starts with non-digit characters |      `^[^0-9]`       | ignore (treated as [comments](#comments)) | `==== anything ====` |
-|    contains only one integer     |     `^([0-9]+)$`     |            set new BPM to `$1`            |        `200`         |
+|    contains only one integer     |     `^[0-9]+$`     |                set new BPM                |        `200`         |
 |               else               |                      |     see [Chords/Notes](#chordsnotes)      |    `4 c#4 2 c#2`     |
 
 
