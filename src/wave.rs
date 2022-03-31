@@ -45,7 +45,7 @@ impl Wave<'_> {
     fn parse_len(&self, token: &str) -> usize {
         let length = match token.len() {
             // e.g. "8" for quaver
-            1 if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
+            _ if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
             // e.g. "4*" for dotted crotchet
             2 if token.ends_with('*') => 1.5 / token.strip_suffix('*').unwrap().parse::<f64>().unwrap(),
             // e.g. "8+16" for a tie from quaver to semiquaver
