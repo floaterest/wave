@@ -25,6 +25,9 @@ pub struct Wave<'a> {
     pi2_fps: f64,
 }
 
+const DOTTED: (char, f64) = ('*', 1.5);
+const TIE: char = '+';
+
 impl Wave<'_> {
     pub fn new<'a>(destination: File, fps: u32, amplitude: f64, curve: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
         Wave {
@@ -42,13 +45,14 @@ impl Wave<'_> {
 
     /// parse the length of a note and return number of frames
     fn parse_len(&self, token: &str) -> usize {
+        // assume first character is ascii digit
         let length = match token.len() {
             // e.g. "8" for quaver
             _ if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
-            // e.g. "4*" for dotted crotchet
-            2 if token.ends_with('*') => 1.5 / token.strip_suffix('*').unwrap().parse::<f64>().unwrap(),
+            // e.g. "4." for dotted crotchet
+            2 if token.ends_with(DOTTED.0) => DOTTED.1 / token.strip_suffix(DOTTED.0).unwrap().parse::<f64>().unwrap(),
             // e.g. "8+16" for a tie from quaver to semiquaver
-            3 if token.bytes().all(|ch| ch.is_ascii_digit() || ch == b'+') => token.bytes()
+            3 if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.bytes()
                 .filter(|&b| b.is_ascii_digit())
                 .map(|b| 1.0 / (b - b'0') as f64).sum(),
             _ => {
