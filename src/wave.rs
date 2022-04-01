@@ -101,14 +101,9 @@ impl Wave<'_> {
         // negative amplitude will make wave decrease on start
         // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
         let amplitude = self.amplitude;
-        let frames = (0..frame_count)
-            .map(|i| self.sine(
-                amplitude,
-                i as f64,
-                frame_count as f64,
-                freq,
-                self.curve,
-            )).collect::<Vec<_>>();
+        let frames = (0..frame_count).map(|i| i as f64)
+            .map(|i| self.sine(amplitude, i, frame_count as f64, freq, self.curve))
+            .collect::<Vec<_>>();
         frames.iter().enumerate().for_each(|(i, y)| self.buffer[i] += y);
         // for (i, &y) in frames.iter().enumerate() {
         //     self.buffer[i] += y;
