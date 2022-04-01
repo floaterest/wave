@@ -95,7 +95,7 @@ impl Wave<'_> {
         Ok(())
     }
     /// add a note to existing waveform (buffer)
-    fn append(&mut self, frame_count: usize, note: &str, slur: bool) {
+    fn append(&mut self, frame_count: usize, note: &str) {
         assert_ne!(frame_count, 0, "Frame count is 0 at {}!", note);
         assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", note);
         let freq = ntof(note.as_bytes());
@@ -108,7 +108,7 @@ impl Wave<'_> {
                 i as f64,
                 frame_count as f64,
                 freq,
-                if slur { &constant } else { self.curve },
+                self.curve,
             )).collect::<Vec<_>>();
         frames.iter().enumerate().for_each(|(i, y)| self.buffer[i] += y);
         // for (i, &y) in frames.iter().enumerate() {
@@ -123,13 +123,9 @@ impl Wave<'_> {
         } else {
             let mut offset = 0;
             let mut frame_count = 0;
-            let mut slur = false;
             line.iter().for_each(
                 // if is note length
                 |token| if token.bytes().next().unwrap().is_ascii_digit() {
-                    // 4- means quaver with slur to the next note
-                    slur = token.ends_with('-');
-                    let token = if slur { token.strip_suffix('-').unwrap() } else { token };
                     // if this length is the first of the line
                     if frame_count == 0 {
                         offset = self.parse_len(token);
@@ -145,7 +141,7 @@ impl Wave<'_> {
                     if frame_count > self.buffer.len() {
                         self.buffer.resize(frame_count, 0);
                     }
-                    self.append(frame_count, token, slur);
+                    self.append(frame_count, token);
                 }
             );
             return Ok(self.flush(offset)?)
