@@ -3,7 +3,6 @@ use std::fs::File;
 use std::slice::from_raw_parts;
 use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
-use crate::curves::constant;
 use crate::note::ntof;
 
 pub struct Wave<'a> {

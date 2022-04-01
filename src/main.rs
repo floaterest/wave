@@ -5,7 +5,6 @@ mod curves;
 use std::env;
 use std::io::{BufRead, BufReader, Result};
 use wave::Wave;
-use std::f64::consts::PI;
 use std::fs::File;
 use crate::curves::sinusoid;
 
