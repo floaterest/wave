@@ -25,7 +25,7 @@ pub struct Wave<'a> {
     pi2_fps: f64,
 }
 
-const DOTTED: (char, f64) = ('*', 1.5);
+const DOTTED: (char, f64) = ('.', 1.5);
 const TIE: char = '+';
 
 impl Wave<'_> {
