@@ -100,7 +100,7 @@ where:
 - `<note>: <value> <pitch>`
 - `<value>:`  [value](https://en.wikipedia.org/wiki/Note_value) of a note, which can be any of the following:
     - `[0-9]+` for nth note (e.g. `4` for a [quarter/crotchet](https://en.wikipedia.org/wiki/Quarter_note) note)
-    - `[0-9]+\*` for [dotted](https://en.wikipedia.org/wiki/Dotted_note) note (e.g. `2*` for a dotted [half/minim](https://en.wikipedia.org/wiki/Half_note) note)
+    - `[0-9]+\.` for [dotted](https://en.wikipedia.org/wiki/Dotted_note) note (e.g. `2.` for a dotted [half/minim](https://en.wikipedia.org/wiki/Half_note) note)
     - `[0-9]-` for [legato](https://en.wikipedia.org/wiki/Legato) (e.g. `8-` for an [eighth/quaver](https://en.wikipedia.org/wiki/Eighth_note) note that does not end with silence)
     - `[0-9]\+[0-9]` for [tie](https://en.wikipedia.org/wiki/Tie_(music)) (e.g. `8+8` for a quarter/crotchet note)
     - `[0-9]\*-` for dotted legato (e.g. `16*-`)
@@ -152,10 +152,10 @@ where:
 
 1   ab4 c5 f5
 
-2*  eb4 g4 c5
+2.  eb4 g4 c5
 4   eb4 a4 c5
 
-4*  d4 f4 bb4
+4.  d4 f4 bb4
 8+4 bb3 d4 f4
 4   d4 f4 bb4
 
