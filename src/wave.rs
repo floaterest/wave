@@ -25,7 +25,8 @@ pub struct Wave<'a> {
     pi2_fps: f64,
 }
 
-const DOTTED: (char, f64) = ('.', 1.5);
+const DOTTED: char = '.';
+const STACCATO: char = '*';
 const TIE: char = '+';
 
 impl Wave<'_> {
@@ -50,7 +51,9 @@ impl Wave<'_> {
             // e.g. "8" for quaver
             _ if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
             // e.g. "4." for dotted crotchet
-            2 if token.ends_with(DOTTED.0) => DOTTED.1 / token.strip_suffix(DOTTED.0).unwrap().parse::<f64>().unwrap(),
+            2 if token.ends_with(DOTTED) => 1.5 / token.strip_suffix(DOTTED).unwrap().parse::<f64>().unwrap(),
+            // e.g. "8*" for quaver with staccato
+            2 if token.ends_with(STACCATO) => 1.0 / token.strip_suffix(STACCATO).unwrap().parse::<f64>().unwrap(),
             // e.g. "8+16" for a tie from quaver to semiquaver
             3 if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.bytes()
                 .filter(|&b| b.is_ascii_digit())
@@ -121,9 +124,12 @@ impl Wave<'_> {
         } else {
             let mut offset = 0;
             let mut frame_count = 0;
+            let mut staccato = false;
             line.iter().for_each(
                 // if is note length
                 |token| if token.bytes().next().unwrap().is_ascii_digit() {
+                    // special case for staccato
+                    staccato = token.ends_with(STACCATO);
                     // if this length is the first of the line
                     if frame_count == 0 {
                         offset = self.parse_len(token);
@@ -139,7 +145,13 @@ impl Wave<'_> {
                     if frame_count > self.buffer.len() {
                         self.buffer.resize(frame_count, 0);
                     }
-                    self.append(frame_count, token);
+
+                    if staccato {
+                        self.append(frame_count / 2, token);
+                        self.append(frame_count / 2, ""); // rest
+                    } else {
+                        self.append(frame_count, token);
+                    }
                 }
             );
             return Ok(self.flush(offset)?)
