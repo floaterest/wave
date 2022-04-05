@@ -150,15 +150,16 @@ impl Wave<'_> {
                     //      quaver == 0.125 == 0.5 beats
                     // dur (in seconds) = len * (60 / bpm) = len * (60 * second / beat)
 
+                    if staccato { self.resize(len); }
                     let freq = ntof(token.as_bytes());
-                    let actual = if staccato { len / 2 } else { len };
-                    self.append(actual, freq);
-                    repeat.push(actual, freq);
-                    if staccato {
+                    let len = if staccato {
                         self.resize(len);
-                        self.append(actual, 0.0);
-                        repeat.push(actual, 0.0);
-                    }
+                        len / 2
+                    } else {
+                        len
+                    };
+                    self.append(len, freq);
+                    repeat.push(len, freq);
                 }
             );
             repeat.flush();
