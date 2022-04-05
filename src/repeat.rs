@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use crate::Wave;
 
 pub struct Repeat {
-    pub voltas: Vec<Vec<Vec<(usize, f64)>>>,
+    pub voltas: Vec<Vec<Vec<(usize, f64, bool)>>>,
     pub current: usize,
     to_store: HashSet<usize>
 }
@@ -31,7 +31,7 @@ impl Repeat {
     fn append_repeat(&self, wave: &mut Wave) {
         self.voltas[0].iter().filter(|line| line.len() > 0).for_each(
             |line| {
-                line.iter().for_each(|(len, freq)| wave.append(*len, *freq));
+                line.iter().for_each(|(len, freq, staccato)| wave.append(*len, *freq, *staccato));
                 wave.flush(line[0].0).unwrap()
             }
         );
@@ -41,21 +41,21 @@ impl Repeat {
         self.current += 1;
         if self.voltas.len() > self.current && self.voltas[self.current].len() > 0 {
             self.voltas[self.current].drain(..).filter(|line| line.len() > 0).for_each(|line| {
-                line.iter().for_each(|(n, freq)| wave.append(*n, *freq));
+                line.iter().for_each(|(n, freq, staccato)| wave.append(*n, *freq, *staccato));
                 wave.flush(line[0].0).unwrap();
             });
             self.current += 1;
             self.append_repeat(wave);
         }
     }
-    pub fn push(&mut self, len: usize, freq: f64) {
+    pub fn push(&mut self, len: usize, freq: f64, staccato: bool) {
         match self.to_store.len() {
             0 => {}
             1 if self.to_store.contains(&self.current) => {}
             _ => {
                 let to_store: HashSet<usize> = self.to_store.iter().filter(|&&v| v != self.current).cloned().collect();
                 to_store.iter().for_each(
-                    |&v| self.voltas[v].iter_mut().last().unwrap().push((len, freq))
+                    |&v| self.voltas[v].iter_mut().last().unwrap().push((len, freq, staccato))
                 );
             }
         }

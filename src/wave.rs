@@ -108,10 +108,11 @@ impl Wave<'_> {
         Ok(())
     }
     /// add a note to existing waveform (buffer)
-    pub fn append(&mut self, len: usize, freq: f64) {
+    pub fn append(&mut self, mut len: usize, freq: f64, staccato: bool) {
         assert_ne!(len, 0, "Frame count is 0 at {}!", freq);
         assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", freq);
         self.resize(len);
+        if staccato { len /= 2; }
         // negative amplitude will make wave decrease on start
         // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
         let amplitude = self.amplitude;
@@ -150,16 +151,9 @@ impl Wave<'_> {
                     //      quaver == 0.125 == 0.5 beats
                     // dur (in seconds) = len * (60 / bpm) = len * (60 * second / beat)
 
-                    if staccato { self.resize(len); }
                     let freq = ntof(token.as_bytes());
-                    let len = if staccato {
-                        self.resize(len);
-                        len / 2
-                    } else {
-                        len
-                    };
-                    self.append(len, freq);
-                    repeat.push(len, freq);
+                    self.append(len, freq, staccato);
+                    repeat.push(len, freq, staccato);
                 }
             );
             repeat.flush();
