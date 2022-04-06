@@ -138,13 +138,9 @@ impl Wave<'_> {
                 |token| if token.bytes().next().unwrap().is_ascii_digit() {
                     // special case for staccato
                     staccato = token.ends_with(STACCATO);
-                    // if this length is the first of the line
-                    if len == 0 {
-                        offset = self.parse_len(token);
-                        len = offset;
-                    } else {
-                        len = self.parse_len(token);
-                    }
+                    len = self.parse_len(token);
+                    // always take shortest len
+                    offset = if offset == 0 { len } else { len.min(offset) };
                 } else { // parse token as note
                     // len (in beats) == beat * 4
                     //      semibreve == 1 == 1 beats
