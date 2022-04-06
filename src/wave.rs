@@ -21,7 +21,7 @@ pub struct Wave<'a> {
     /// current position
     pos: u64,
     /// waveform buffer
-    buffer: Vec<i16>,
+    pub buffer: Vec<i16>,
     /// PI * 2.0 * frame rate
     pi2_fps: f64,
 }
@@ -108,14 +108,14 @@ impl Wave<'_> {
         Ok(())
     }
     /// add a note to existing waveform (buffer)
-    pub fn append(&mut self, mut len: usize, freq: f64, staccato: bool) {
+    pub fn append(&mut self, len: usize, freq: f64) {
+        if freq == 0.0 { return; }
         assert_ne!(len, 0, "Frame count is 0 at {}!", freq);
         assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", freq);
-        self.resize(len);
-        if staccato { len /= 2; }
         // negative amplitude will make wave decrease on start
         // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
         let amplitude = self.amplitude;
+        dbg!((len, self.buffer.len()));
         let frames = (0..len).map(|i| i as f64)
             .map(|i| self.sine(amplitude, i, len as f64, freq, self.curve))
             .collect::<Vec<_>>();
@@ -132,15 +132,22 @@ impl Wave<'_> {
         } else {
             let mut offset = 0;
             let mut len = 0;
-            let mut staccato = false;
+            let mut size = 0;
             line.split_ascii_whitespace().for_each(
                 // if is note length
                 |token| if token.bytes().next().unwrap().is_ascii_digit() {
                     // special case for staccato
-                    staccato = token.ends_with(STACCATO);
                     len = self.parse_len(token);
+                    if len > size {
+                        self.buffer.resize(len, 0);
+                        size = len;
+                    }
                     // always take shortest len
                     offset = if offset == 0 { len } else { len.min(offset) };
+                    repeat.set(size, offset);
+                    if token.ends_with(STACCATO) {
+                        len /= 2;
+                    }
                 } else { // parse token as note
                     // len (in beats) == beat * 4
                     //      semibreve == 1 == 1 beats
@@ -148,8 +155,8 @@ impl Wave<'_> {
                     // dur (in seconds) = len * (60 / bpm) = len * (60 * second / beat)
 
                     let freq = ntof(token.as_bytes());
-                    self.append(len, freq, staccato);
-                    repeat.push(len, freq, staccato);
+                    self.append(len, freq);
+                    repeat.push(len, freq);
                 }
             );
             repeat.flush();
@@ -158,9 +165,9 @@ impl Wave<'_> {
         Ok(())
     }
     /// write frames and shift position
-    pub fn flush(&mut self, len: usize) -> Result<()> {
-        self.pos += len as u64;
-        let wave: Vec<_> = self.buffer.drain(..len).collect();
+    pub fn flush(&mut self, offset: usize) -> Result<()> {
+        self.pos += offset as u64;
+        let wave: Vec<_> = self.buffer.drain(..offset).collect();
         self.file.write(unsafe { from_raw_parts(wave.as_ptr() as *const u8, wave.len() * size_of::<i16>()) })?;
         Ok(())
     }
