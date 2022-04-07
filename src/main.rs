@@ -36,25 +36,28 @@ fn main() -> Result<()> {
         .filter(|line| line.len() > 0)
         .for_each(|line| {
             match line {
-                _ if line.ends_with(REPEAT) => match line.strip_suffix(REPEAT).unwrap() {
-                    "" => repeat.clear(),
-                    ":" => {
-                        repeat.repeat(&mut wave);
-                        if repeat.voltas.len() == 1 {
-                            repeat.clear();
-                        }
+                _ if line.contains(REPEAT) => line.split_whitespace().for_each(|token| match token {
+                    _ if token.ends_with(REPEAT) => match token.strip_suffix(REPEAT).unwrap() {
+                        "" => repeat.clear(),
+                        ":" => {
+                            repeat.repeat(&mut wave);
+                            if repeat.voltas.len() == 1 {
+                                repeat.clear();
+                            }
+                        },
+                        _ => assert!(false, "Invalid repeat symbol: {}", line),
+                    }
+                    _ if token.starts_with(REPEAT) => match token.strip_prefix(REPEAT).unwrap() {
+                        ":" => repeat.start(&[0]),
+                        s => repeat.start(
+                            &s.split('.')
+                                .filter(|ch| !ch.is_empty())
+                                .map(|ch| ch.parse::<usize>().unwrap())
+                                .collect::<Vec<_>>()
+                        )
                     },
-                    _ => assert!(false, "Invalid repeat symbol: {}", line),
-                }
-                _ if line.starts_with(REPEAT) => match line.strip_prefix(REPEAT).unwrap() {
-                    ":" => repeat.start(&[0]),
-                    s => repeat.start(
-                        &s.split('.')
-                            .filter(|ch| !ch.is_empty())
-                            .map(|ch| ch.parse::<usize>().unwrap())
-                            .collect::<Vec<_>>()
-                    )
-                },
+                    _ => {}
+                }),
                 _ if line.chars().next().unwrap().is_ascii_digit() => wave.process(&line, &mut repeat).unwrap(),
                 _ => {}
             }
