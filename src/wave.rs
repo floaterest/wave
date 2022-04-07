@@ -115,7 +115,6 @@ impl Wave<'_> {
         // negative amplitude will make wave decrease on start
         // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
         let amplitude = self.amplitude;
-        dbg!((len, self.buffer.len()));
         let frames = (0..len).map(|i| i as f64)
             .map(|i| self.sine(amplitude, i, len as f64, freq, self.curve))
             .collect::<Vec<_>>();
