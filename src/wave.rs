@@ -131,7 +131,7 @@ impl Wave<'_> {
         } else {
             let mut offset = 0;
             let mut len = 0;
-            let mut size = 0;
+            let mut size = self.buffer.len();
             line.split_ascii_whitespace().for_each(
                 // if is note length
                 |token| if token.bytes().next().unwrap().is_ascii_digit() {
