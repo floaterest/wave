@@ -3,7 +3,6 @@ use std::fs::File;
 use std::slice::from_raw_parts;
 use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
-use crate::curves::constant;
 use crate::note::ntof;
 
 pub struct Wave<'a> {
@@ -26,6 +25,10 @@ pub struct Wave<'a> {
     pi2_fps: f64,
 }
 
+const DOTTED: char = '.';
+const STACCATO: char = '*';
+const TIE: char = '+';
+
 impl Wave<'_> {
     pub fn new<'a>(destination: File, fps: u32, amplitude: f64, curve: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
         Wave {
@@ -43,13 +46,16 @@ impl Wave<'_> {
 
     /// parse the length of a note and return number of frames
     fn parse_len(&self, token: &str) -> usize {
+        // assume first character is ascii digit
         let length = match token.len() {
             // e.g. "8" for quaver
-            1 if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
-            // e.g. "4*" for dotted crotchet
-            2 if token.ends_with('*') => 1.5 / token.strip_suffix('*').unwrap().parse::<f64>().unwrap(),
+            _ if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
+            // e.g. "4." for dotted crotchet
+            2 if token.ends_with(DOTTED) => 1.5 / token.strip_suffix(DOTTED).unwrap().parse::<f64>().unwrap(),
+            // e.g. "8*" for quaver with staccato
+            2 if token.ends_with(STACCATO) => 1.0 / token.strip_suffix(STACCATO).unwrap().parse::<f64>().unwrap(),
             // e.g. "8+16" for a tie from quaver to semiquaver
-            3 if token.bytes().all(|ch| ch.is_ascii_digit() || ch == b'+') => token.bytes()
+            3 if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.bytes()
                 .filter(|&b| b.is_ascii_digit())
                 .map(|b| 1.0 / (b - b'0') as f64).sum(),
             _ => {
@@ -95,21 +101,16 @@ impl Wave<'_> {
         Ok(())
     }
     /// add a note to existing waveform (buffer)
-    fn append(&mut self, frame_count: usize, note: &str, slur: bool) {
+    fn append(&mut self, frame_count: usize, note: &str) {
         assert_ne!(frame_count, 0, "Frame count is 0 at {}!", note);
         assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", note);
         let freq = ntof(note.as_bytes());
         // negative amplitude will make wave decrease on start
         // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
         let amplitude = self.amplitude;
-        let frames = (0..frame_count)
-            .map(|i| self.sine(
-                amplitude,
-                i as f64,
-                frame_count as f64,
-                freq,
-                if slur { &constant } else { self.curve },
-            )).collect::<Vec<_>>();
+        let frames = (0..frame_count).map(|i| i as f64)
+            .map(|i| self.sine(amplitude, i, frame_count as f64, freq, self.curve))
+            .collect::<Vec<_>>();
         frames.iter().enumerate().for_each(|(i, y)| self.buffer[i] += y);
         // for (i, &y) in frames.iter().enumerate() {
         //     self.buffer[i] += y;
@@ -123,13 +124,12 @@ impl Wave<'_> {
         } else {
             let mut offset = 0;
             let mut frame_count = 0;
-            let mut slur = false;
+            let mut staccato = false;
             line.iter().for_each(
                 // if is note length
                 |token| if token.bytes().next().unwrap().is_ascii_digit() {
-                    // 4- means quaver with slur to the next note
-                    slur = token.ends_with('-');
-                    let token = if slur { token.strip_suffix('-').unwrap() } else { token };
+                    // special case for staccato
+                    staccato = token.ends_with(STACCATO);
                     // if this length is the first of the line
                     if frame_count == 0 {
                         offset = self.parse_len(token);
@@ -145,7 +145,13 @@ impl Wave<'_> {
                     if frame_count > self.buffer.len() {
                         self.buffer.resize(frame_count, 0);
                     }
-                    self.append(frame_count, token, slur);
+
+                    if staccato {
+                        self.append(frame_count / 2, token);
+                        self.append(frame_count / 2, ""); // rest
+                    } else {
+                        self.append(frame_count, token);
+                    }
                 }
             );
             return Ok(self.flush(offset)?)
