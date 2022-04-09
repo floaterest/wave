@@ -1,13 +1,4 @@
 # Input Format
-Each line of the input file must be any of the following (after being trimmed):
-
-|           Description            | Regex Representation |     How the Program Will Interpret It     |       Example        |
-| :------------------------------: | :------------------: | :---------------------------------------: | :------------------: |
-|         empty/whitespace         |       `^\s*$`        |                  ignore                   |         `\t`         |
-| starts with non-digit characters |      `^[^0-9]`       | ignore (treated as [comments](#comments)) | `==== anything ====` |
-|    contains only one integer     |     `^[0-9]+$`     |                set new BPM                |        `200`         |
-|               else               |                      |     see [Chords/Notes](#chordsnotes)      |    `4 c#4 2 c#2`     |
-
 
 ## Comments
 > any line that doen't start with an ascii digit character
@@ -109,6 +100,8 @@ where:
     - `[a-g]#[0-9]` for a [sharp](https://en.wikipedia.org/wiki/Sharp_(music)) note (e.g. `f#3` for F♯<sub>3</sub>)
     - `[^a-z0-9\s]` for a [rest](https://en.wikipedia.org/wiki/Rest_(music)) (e.g. `.` `\` `-` )
 
+# Input Examples
+
 <details><summary>Example: rests and ties</summary>
 
 ![](../assets/rest%26tie.png)
@@ -162,5 +155,48 @@ where:
 2   c4 e4 g4
 ```
 </details>
+
+<details><summary>Example: repeats and staccatos</summary>
+
+![](../assets/repeat&staccato.png)
+```
+======= BPM ========
+151
+====================
+|:
+    4* bb3 eb4 bb4
+    4* f4 bb4 f5
+    4* c4 eb4 c5
+    4* f4 c5 f5
+    ----------------
+    4* db4 bb4 db5
+    8 eb4 c5 eb5
+    8 f4 db5 f5
+    4* eb4 c5 eb5
+    4* g4 eb5 g5
+    ----------------
+    8 bb4 f5 bb5
+    8 f4 db5 f5
+    8 c5 ab5 c6
+    8 db5 bb5 db6
+    8 c5 ab5 c6
+    16 db5 bb5 db6
+    16 c5 ab5 c6
+    8 bb4 db5 bb5
+    8* ab4 db5 ab5
+|1.3.
+    8 f4 db5 f5
+    8 ab4 f5 ab5
+    8 eb4 c5 eb5
+    8 f4 db5 f5
+    2 db4 bb4 db5
+:| |2.
+    1 bb4 f5 bb5
+:| |4.
+    1 bb4 f5 bb5
+|
+```
+</details>
+
 
 <!-- <details><summary></summary></details> -->
