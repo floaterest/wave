@@ -8,8 +8,7 @@ use std::io::{BufRead, BufReader, Result};
 use wave::Wave;
 use std::fs::File;
 use crate::curves::sinusoid;
-use crate::repeat::Repeat;
-use crate::wave::REPEAT;
+use crate::repeat::{parse_repeat, Repeat, REPEAT};
 
 
 fn io() -> (String, String) {
@@ -36,28 +35,7 @@ fn main() -> Result<()> {
         .filter(|line| line.len() > 0)
         .for_each(|line| {
             match line {
-                _ if line.contains(REPEAT) => line.split_whitespace().for_each(|token| match token {
-                    _ if token.ends_with(REPEAT) => match token.strip_suffix(REPEAT).unwrap() {
-                        "" => repeat.clear(),
-                        ":" => {
-                            repeat.repeat(&mut wave);
-                            if repeat.voltas.len() == 1 {
-                                repeat.clear();
-                            }
-                        },
-                        _ => assert!(false, "Invalid repeat symbol: {}", line),
-                    }
-                    _ if token.starts_with(REPEAT) => match token.strip_prefix(REPEAT).unwrap() {
-                        ":" => repeat.start(&[0]),
-                        s => repeat.start(
-                            &s.split('.')
-                                .filter(|ch| !ch.is_empty())
-                                .map(|ch| ch.parse::<usize>().unwrap())
-                                .collect::<Vec<_>>()
-                        )
-                    },
-                    _ => {}
-                }),
+                _ if line.contains(REPEAT) => line.split_whitespace().for_each(|token| parse_repeat(&mut repeat, &mut wave, token)),
                 _ if line.chars().next().unwrap().is_ascii_digit() => wave.process(&line, &mut repeat).unwrap(),
                 _ => {}
             }
