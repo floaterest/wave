@@ -137,12 +137,13 @@ impl Wave<'_> {
                     // special case for staccato
                     len = self.parse_len(token);
                     if len > size {
-                        self.buffer.resize(len, 0);
                         size = len;
+                        self.buffer.resize(size, 0);
                     }
                     // always take shortest len
-                    offset = if offset == 0 { len } else { len.min(offset) };
-                    repeat.set(size, offset);
+                    if offset == 0 || len < offset {
+                        offset = len;
+                    }
                     if token.ends_with(STACCATO) {
                         len /= 2;
                     }
@@ -157,6 +158,7 @@ impl Wave<'_> {
                     repeat.push(len, freq);
                 }
             );
+            repeat.resize(size, offset);
             repeat.flush();
             return Ok(self.flush(offset)?)
         }

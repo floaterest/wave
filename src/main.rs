@@ -2,13 +2,14 @@ mod note;
 mod wave;
 mod curves;
 mod repeat;
+mod line;
 
 use std::env;
 use std::io::{BufRead, BufReader, Result};
 use wave::Wave;
 use std::fs::File;
 use crate::curves::sinusoid;
-use crate::repeat::{parse_repeat, Repeat, REPEAT};
+use crate::repeat::{Repeat, REPEAT};
 
 
 fn io() -> (String, String) {
@@ -35,7 +36,7 @@ fn main() -> Result<()> {
         .filter(|line| line.len() > 0)
         .for_each(|line| {
             match line {
-                _ if line.contains(REPEAT) => line.split_whitespace().for_each(|token| parse_repeat(&mut repeat, &mut wave, token)),
+                _ if line.contains(REPEAT) => line.split_whitespace().for_each(|token| repeat.parse(&mut wave, token)),
                 _ if line.chars().next().unwrap().is_ascii_digit() => wave.process(&line, &mut repeat).unwrap(),
                 _ => {}
             }
