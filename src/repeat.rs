@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use crate::Wave;
 
+pub const REPEAT: char = '|';
+
 #[derive(Clone)]
 pub struct Line {
     size: usize,
@@ -90,5 +92,38 @@ impl Repeat {
                 );
             }
         }
+    }
+}
+
+fn parse_repeat_end(repeat: &mut Repeat, wave: &mut Wave, token: &str) {
+    match token.strip_suffix(REPEAT) {
+        // if end of all voltas
+        Some("") => repeat.clear(),
+        Some(":") => {
+            repeat.repeat(wave);
+            // if doesn't have voltas starting from 1
+            if repeat.voltas.len() == 1 { repeat.clear(); }
+        }
+        _ => assert!(false, "Invalid repeat end token: {}", token),
+    }
+}
+
+fn parse_repeat_start(repeat: &mut Repeat, token: &str) {
+    match token.strip_prefix(REPEAT) {
+        Some(":") => repeat.start(&[0]),
+        Some(s) => repeat.start(
+            &s.split('.').filter(|ch| !ch.is_empty())
+                .map(|ch| ch.parse().expect(&format!("Invalid volta token: {}", ch)))
+                .collect::<Vec<usize>>()
+        ),
+        _ => assert!(false, "Invalid repeat start token: {}", token),
+    }
+}
+
+pub fn parse_repeat(repeat: &mut Repeat, wave: &mut Wave, token: &str) {
+    match token {
+        _ if token.ends_with(REPEAT) => parse_repeat_end(repeat, wave, token),
+        _ if token.starts_with(REPEAT) => parse_repeat_start(repeat, token),
+        _ => assert!(false, "Invalid repeat token: {}", token),
     }
 }

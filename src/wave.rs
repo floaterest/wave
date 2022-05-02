@@ -29,7 +29,6 @@ pub struct Wave<'a> {
 const DOTTED: char = '.';
 const STACCATO: char = '*';
 const TIE: char = '+';
-pub const REPEAT: char = '|';
 
 impl Wave<'_> {
     pub fn new<'a>(destination: File, fps: u32, amplitude: f64, curve: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
