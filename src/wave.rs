@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::slice::from_raw_parts;
@@ -27,6 +28,8 @@ pub struct Wave {
     buffer: Vec<i16>,
     /// PI * 2.0 * frame rate
     pi2rate: f64,
+    /// note -> freq
+    notes: HashMap<String, f64>,
 }
 
 impl Wave {
@@ -40,6 +43,7 @@ impl Wave {
             pos: 0,
             buffer: Vec::new(),
             pi2rate: 2.0 * PI / rate as f64,
+            notes: HashMap::new(),
         }
     }
     /// resize the buffer and fill with 0
@@ -139,7 +143,10 @@ impl Wave {
             }
             _ => {
                 // parse token as note
-                let freq = ntof(token.as_bytes());
+                if !self.notes.contains_key(token) {
+                    self.notes.insert(token.to_string(), ntof(token.as_bytes()));
+                }
+                let freq = *self.notes.get(token).unwrap();
                 self.append(len, freq);
                 repeat.push(len, freq);
             }
