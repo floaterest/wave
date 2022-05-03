@@ -19,10 +19,10 @@ pub const REPEAT: char = '|';
 
 fn io() -> (String, String) {
     let args: Vec<String> = env::args().collect();
-    if args.len() > 2 {
-        (String::from(&args[1]), String::from(&args[2]))
-    } else {
-        (String::from("input.txt"), String::from("output.wav"))
+    match args.len() {
+        2 => (args[1].to_string(), "output.wav".to_string()),
+        3 => (args[1].to_string(), args[2].to_string()),
+        _ => ("input.txt".to_string(), "output.txt".to_string()),
     }
 }
 
