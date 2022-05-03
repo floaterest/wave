@@ -4,79 +4,49 @@ use std::slice::from_raw_parts;
 use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
 use crate::note::ntof;
-use crate::Repeat;
+use crate::{DOTTED, Repeat, STACCATO, TIE};
+use crate::curves::sinusoid;
 
-pub struct Wave<'a> {
+fn sine(ampl: f64, i: f64, n: f64, period: f64, curve: &dyn Fn(f64) -> f64) -> i16 {
+    (ampl * curve(i / n) * (period * i).sin()) as i16
+}
+
+pub struct Wave {
     /// output file (`.wav`)
     file: File,
     /// number of samples/frames per second (fps)
-    fps: u32,
+    rate: u32,
     /// maximum amplitude of a note
     amplitude: f64,
-    /// curve function in [0.0, 1.0)
-    curve: &'a dyn Fn(f64) -> f64,
 
     /// current bpm
-    bpm: i32,
+    bpm: u16,
     /// current position
     pos: u64,
     /// waveform buffer
-    pub buffer: Vec<i16>,
+    buffer: Vec<i16>,
     /// PI * 2.0 * frame rate
-    pi2_fps: f64,
+    pi2rate: f64,
 }
 
-const DOTTED: char = '.';
-const STACCATO: char = '*';
-const TIE: char = '+';
-
-impl Wave<'_> {
-    pub fn new<'a>(destination: File, fps: u32, amplitude: f64, curve: &'a dyn Fn(f64) -> f64) -> Wave<'a> {
+impl Wave {
+    pub fn new(destination: File, rate: u32, amplitude: f64) -> Self {
         Wave {
             file: destination,
-            fps,
+            rate,
             amplitude,
-            curve,
 
             bpm: 0,
             pos: 0,
             buffer: Vec::new(),
-            pi2_fps: 2.0 * PI / fps as f64,
+            pi2rate: 2.0 * PI / rate as f64,
         }
     }
-
-    /// parse the length of a note and return number of frames
-    fn parse_len(&self, token: &str) -> usize {
-        // assume first character is ascii digit
-        let length = match token.len() {
-            // e.g. "8" for quaver
-            _ if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
-            // e.g. "4." for dotted crotchet
-            2 if token.ends_with(DOTTED) => 1.5 / token.strip_suffix(DOTTED).unwrap().parse::<f64>().unwrap(),
-            // e.g. "8*" for quaver with staccato
-            2 if token.ends_with(STACCATO) => 1.0 / token.strip_suffix(STACCATO).unwrap().parse::<f64>().unwrap(),
-            // e.g. "8+16" for a tie from quaver to semiquaver
-            3 if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.bytes()
-                .filter(|&b| b.is_ascii_digit())
-                .map(|b| 1.0 / (b - b'0') as f64).sum(),
-            _ => {
-                assert!(false, "Unknown token as note length: {:?}", token);
-                0.0
-            },
-        };
-        //     ((   duration in seconds   )  number of frames)
-        return ((length * 240.0 / self.bpm as f64) * self.fps as f64) as usize;
+    /// resize the buffer and fill with 0
+    pub fn resize(&mut self, size: usize) {
+        self.buffer.resize(size, 0);
     }
-    /// generate sine value (y) at x
-    fn sine(&self, a: f64, x: f64, n: f64, freq: f64, curve: &dyn Fn(f64) -> f64) -> i16 {
-        (a * curve(x / n) * (freq * self.pi2_fps * x).sin()) as i16
-    }
-
-    pub fn resize(&mut self, at_least: usize) {
-        if at_least > self.buffer.len() {
-            self.buffer.resize(at_least, 0);
-        }
-    }
+    //#region write to file
     /// write headers
     pub fn start(&mut self) -> Result<()> {
         let nchannels = 1u16;
@@ -91,9 +61,9 @@ impl Wave<'_> {
         ])?;
         self.file.write(&unsafe { transmute(nchannels) } as &[u8; 2])?;
         // frame rate (fps)
-        self.file.write(&unsafe { transmute(self.fps) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute(self.rate) } as &[u8; 4])?;
         // byte rate
-        self.file.write(&unsafe { transmute(self.fps * frame_width as u32) } as &[u8; 4])?;
+        self.file.write(&unsafe { transmute(self.rate * frame_width as u32) } as &[u8; 4])?;
         // block align
         self.file.write(&[2, 0])?;
         // bits per frame
@@ -108,61 +78,16 @@ impl Wave<'_> {
     }
     /// add a note to existing waveform (buffer)
     pub fn append(&mut self, len: usize, freq: f64) {
+        // no need to add rests
         if freq == 0.0 { return; }
         assert_ne!(len, 0, "Frame count is 0 at {}!", freq);
         assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", freq);
-        // negative amplitude will make wave decrease on start
-        // let amplitude = if self.inc { self.amplitude } else { -self.amplitude };
-        let amplitude = self.amplitude;
-        let frames = (0..len).map(|i| i as f64)
-            .map(|i| self.sine(amplitude, i, len as f64, freq, self.curve))
-            .collect::<Vec<_>>();
-        frames.iter().enumerate().for_each(|(i, y)| self.buffer[i] += y);
-        // for (i, &y) in frames.iter().enumerate() {
-        //     self.buffer[i] += y;
-        // }
-    }
-    /// process a line (notes/bpm) of input
-    pub fn process(&mut self, line: &str, repeat: &mut Repeat) -> Result<()> {
-        // if the line specifies the bpm
-        if line.bytes().all(|b| b.is_ascii_digit()) {
-            self.bpm = line.parse().unwrap();
-        } else {
-            let mut offset = 0;
-            let mut len = 0;
-            let mut size = self.buffer.len();
-            line.split_ascii_whitespace().for_each(
-                // if is note length
-                |token| if token.bytes().next().unwrap().is_ascii_digit() {
-                    // special case for staccato
-                    len = self.parse_len(token);
-                    if len > size {
-                        size = len;
-                        self.buffer.resize(size, 0);
-                    }
-                    // always take shortest len
-                    if offset == 0 || len < offset {
-                        offset = len;
-                    }
-                    if token.ends_with(STACCATO) {
-                        len /= 2;
-                    }
-                } else { // parse token as note
-                    // len (in beats) == beat * 4
-                    //      semibreve == 1 == 1 beats
-                    //      quaver == 0.125 == 0.5 beats
-                    // dur (in seconds) = len * (60 / bpm) = len * (60 * second / beat)
-
-                    let freq = ntof(token.as_bytes());
-                    self.append(len, freq);
-                    repeat.push(len, freq);
-                }
-            );
-            repeat.resize(size, offset);
-            repeat.flush();
-            return Ok(self.flush(offset)?)
-        }
-        Ok(())
+        let a = self.amplitude;
+        let period = freq * self.pi2rate;
+        // let frames = (0..len).map(|i| i as f64)
+        (0..len).map(|i| i as f64)
+            .map(|i| sine(a, i, len as f64, period, &sinusoid))
+            .enumerate().for_each(|(i, y)| self.buffer[i] += y);
     }
     /// write frames and shift position
     pub fn flush(&mut self, offset: usize) -> Result<()> {
@@ -184,4 +109,66 @@ impl Wave<'_> {
 
         Ok(())
     }
+    //#endregion write to file
+    //#region parse input
+    /// process a line (notes/bpm) of input
+    pub fn process(&mut self, line: &str, repeat: &mut Repeat) -> Result<()> {
+        // if the line specifies the bpm
+        Ok(match line.parse::<u16>() {
+            Ok(bpm) => self.bpm = bpm,
+            Err(..) => self.parse_notes(line, repeat)?,
+        })
+    }
+    /// parse a line as notes
+    fn parse_notes(&mut self, line: &str, repeat: &mut Repeat) -> Result<()> {
+        let mut offset = 0;
+        let mut len = 0;
+        let mut size = self.buffer.len();
+        line.split_ascii_whitespace().for_each(|token| match token.bytes().next() {
+            // if is note length
+            Some(b) if b.is_ascii_digit() => {
+                len = self.parse_len(token);
+                if len > size {
+                    size = len;
+                    self.buffer.resize(size, 0);
+                }
+                // always take shortest len
+                if offset == 0 || len < offset { offset = len; }
+                // half note length of staccato
+                if token.ends_with(STACCATO) { len /= 2; }
+            }
+            _ => {
+                // parse token as note
+                let freq = ntof(token.as_bytes());
+                self.append(len, freq);
+                repeat.push(len, freq);
+            }
+        });
+        repeat.resize(size, offset);
+        repeat.flush();
+        Ok(self.flush(offset)?)
+    }
+    /// parse a token as length of a note and return number of frames
+    fn parse_len(&self, token: &str) -> usize {
+        // assume first character is ascii digit
+        let length = match token.len() {
+            // e.g. "8" for quaver
+            _ if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
+            // e.g. "4." for dotted crotchet
+            2 if token.ends_with(DOTTED) => 1.5 / token.strip_suffix(DOTTED).unwrap().parse::<f64>().unwrap(),
+            // e.g. "8*" for quaver with staccato
+            2 if token.ends_with(STACCATO) => 1.0 / token.strip_suffix(STACCATO).unwrap().parse::<f64>().unwrap(),
+            // e.g. "8+16" for a tie from quaver to semiquaver
+            3 if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.split(TIE)
+                .map(|s| 1.0 / s.parse::<f64>().unwrap())
+                .sum(),
+            _ => {
+                assert!(false, "Unknown token as note length: {:?}", token);
+                0.0
+            },
+        };
+        //     ((      duration in seconds       )  number of frames)
+        return ((length * 240.0 / self.bpm as f64) * self.rate as f64) as usize;
+    }
+    //#endregion parse input
 }
