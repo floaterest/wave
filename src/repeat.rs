@@ -1,8 +1,6 @@
 use std::collections::HashSet;
 use crate::line::Line;
-use crate::Wave;
-
-pub const REPEAT: char = '|';
+use crate::{REPEAT, Wave};
 
 pub struct Repeat {
     voltas: Vec<Vec<Line>>,
