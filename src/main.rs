@@ -22,7 +22,7 @@ fn io() -> (String, String) {
     match args.len() {
         2 => (args[1].to_string(), "output.wav".to_string()),
         3 => (args[1].to_string(), args[2].to_string()),
-        _ => ("input.txt".to_string(), "output.txt".to_string()),
+        _ => ("input.txt".to_string(), "output.wav".to_string()),
     }
 }
 
