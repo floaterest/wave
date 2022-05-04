@@ -43,7 +43,7 @@ impl Repeat {
         // if the next volta is already stored (∴ won't appear in input)
         if self.voltas.len() > self.current && self.voltas[self.current].len() > 0 {
             // append current volta to Wave
-            self.voltas[self.current].for_each(|line| line.append(to));
+            self.voltas[self.current].iter().for_each(|line| line.append(to));
             // add repeat to Wave again
             self.voltas[0].iter().for_each(|line| line.append(to));
             self.current += 1;
