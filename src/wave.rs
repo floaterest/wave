@@ -1,181 +1,140 @@
 use std::collections::HashMap;
-use std::f64::consts::PI;
 use std::fs::File;
-use std::slice::from_raw_parts;
-use std::mem::{size_of, transmute};
-use std::io::{Result, Seek, SeekFrom, Write};
+use std::io::Result;
+use crate::{DOTTED, Repeat, REPEAT, STACCATO, TIE};
+use crate::line::Line;
 use crate::note::ntof;
-use crate::{DOTTED, Repeat, STACCATO, TIE};
-use crate::curves::sinusoid;
-
-fn sine(ampl: f64, i: f64, n: f64, period: f64, curve: &dyn Fn(f64) -> f64) -> i16 {
-    (ampl * curve(i / n) * (period * i).sin()) as i16
-}
+use crate::writer::Writer;
 
 pub struct Wave {
-    /// output file (`.wav`)
-    file: File,
-    /// number of samples/frames per second (fps)
-    rate: u32,
-    /// maximum amplitude of a note
-    amplitude: f64,
-
-    /// current bpm
-    bpm: u16,
-    /// current position
-    pos: u64,
-    /// waveform buffer
-    buffer: Vec<i16>,
-    /// PI * 2.0 * frame rate
-    pi2rate: f64,
+    writer: Writer,
+    repeat: Repeat,
     /// note -> freq
     notes: HashMap<String, f64>,
 }
 
 impl Wave {
-    pub fn new(destination: File, rate: u32, amplitude: f64) -> Self {
-        Wave {
-            file: destination,
-            rate,
-            amplitude,
-
-            bpm: 0,
-            pos: 0,
-            buffer: Vec::new(),
-            pi2rate: 2.0 * PI / rate as f64,
+    pub fn new(dest: File, rate: u32, amp: f64) -> Self {
+        Self {
+            writer: Writer::new(dest, rate, amp),
+            repeat: Repeat::new(),
             notes: HashMap::new(),
         }
     }
-    /// resize the buffer and fill with 0
-    pub fn resize(&mut self, size: usize) {
-        self.buffer.resize(size, 0);
-    }
-    //#region write to file
-    /// write headers
-    pub fn start(&mut self) -> Result<()> {
-        let nchannels = 1u16;
-        let frame_width = 16u16;
-        self.file.write(&[
-            82, 73, 70, 70, // RIFF
-            0, 0, 0, 0, // file size
-            87, 65, 86, 69, // WAVE
-            102, 109, 116, 32, // fmt
-            16, 0, 0, 0, // fmt chunk size
-            1, 0, // format tag (PCM)
-        ])?;
-        self.file.write(&unsafe { transmute(nchannels) } as &[u8; 2])?;
-        // frame rate (fps)
-        self.file.write(&unsafe { transmute(self.rate) } as &[u8; 4])?;
-        // byte rate
-        self.file.write(&unsafe { transmute(self.rate * frame_width as u32) } as &[u8; 4])?;
-        // block align
-        self.file.write(&[2, 0])?;
-        // bits per frame
-        self.file.write(&unsafe { transmute(frame_width) } as &[u8; 2])?;
-
-        self.file.write(&[
-            100, 97, 116, 97, // data
-            0, 0, 0, 0, // nframes * nchannels * bytes / frame, also is file size - 36
-        ])?;
-
-        Ok(())
-    }
-    /// add a note to existing waveform (buffer)
-    pub fn append(&mut self, len: usize, freq: f64) {
-        // no need to add rests
-        if freq == 0.0 { return; }
-        assert_ne!(len, 0, "Frame count is 0 at {}!", freq);
-        assert_ne!(self.bpm, 0, "BPM is 0.0 at {}!", freq);
-        let a = self.amplitude;
-        let period = freq * self.pi2rate;
-        // let frames = (0..len).map(|i| i as f64)
-        (0..len).map(|i| i as f64)
-            .map(|i| sine(a, i, len as f64, period, &sinusoid))
-            .enumerate().for_each(|(i, y)| self.buffer[i] += y);
-    }
-    /// write frames and shift position
-    pub fn flush(&mut self, offset: usize) -> Result<()> {
-        self.pos += offset as u64;
-        let wave: Vec<_> = self.buffer.drain(..offset).collect();
-        self.file.write(unsafe { from_raw_parts(wave.as_ptr() as *const u8, wave.len() * size_of::<i16>()) })?;
-        Ok(())
-    }
-    /// go back and write file size
-    pub fn finish(&mut self) -> Result<()> {
-        // empty buffer
-        self.flush(self.buffer.len())?;
-
-        let size: u64 = self.file.metadata()?.len();
-        self.file.seek(SeekFrom::Start(4))?;
-        self.file.write(&unsafe { transmute(size as u32) } as &[u8; 4])?;
-        self.file.seek(SeekFrom::Start(40))?;
-        self.file.write(&unsafe { transmute((size - 36) as u32) } as &[u8; 4])?;
-
-        Ok(())
-    }
-    //#endregion write to file
     //#region parse input
-    /// process a line (notes/bpm) of input
-    pub fn process(&mut self, line: &str, repeat: &mut Repeat) -> Result<()> {
-        // if the line specifies the bpm
-        Ok(match line.parse::<u16>() {
-            Ok(bpm) => self.bpm = bpm,
-            Err(..) => self.parse_notes(line, repeat)?,
+    /// parse iter of lines
+    pub fn parse<I: Iterator<Item=String>>(&mut self, mut lines: I) -> Result<()> {
+        self.writer.start()?;
+        lines.map(
+            |line| line.trim().to_string()
+        ).filter(
+            |line| line.len() > 0
+        ).flat_map(|line| self.parse_line(line)).collect::<()>();
+        Ok(self.writer.finish()?)
+    }
+    /// parse a line of input
+    fn parse_line(&mut self, line: String) -> Result<()> {
+        Ok(match line.split_whitespace() {
+            sw if line.contains(REPEAT) => self.parse_repeat(sw),
+            sw if line.chars().next().unwrap().is_ascii_digit() => match line.parse::<u16>() {
+                Ok(bpm) => self.writer.bpm = bpm,
+                Err(..) => self.parse_notes(sw)?,
+            }
+            _ => {},
         })
     }
-    /// parse a line as notes
-    fn parse_notes(&mut self, line: &str, repeat: &mut Repeat) -> Result<()> {
-        let mut offset = 0;
-        let mut len = 0;
-        let mut size = self.buffer.len();
-        line.split_ascii_whitespace().for_each(|token| match token.bytes().next() {
-            // if is note length
+    fn parse_repeat<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) {
+        tokens.for_each(|token: &str| match token {
+            _ if token.ends_with(REPEAT) => self.parse_end(token),
+            _ if token.starts_with(REPEAT) => self.parse_start(token),
+            _ => panic!("Invalid repeat token: {}", token)
+        })
+    }
+    fn parse_end(&mut self, token: &str) {
+        match token.strip_suffix(REPEAT) {
+            // end all voltas
+            Some("") => self.repeat.clear(),
+            Some(":") => {
+                self.rep();
+                // if doesn't have voltas starting from 1
+                if self.repeat.voltas.len() == 1 { self.repeat.clear(); }
+            }
+            _ => panic!("Invalid repeat end token: {}", token)
+        }
+    }
+    pub fn rep(&mut self) {
+        let writer = &mut self.writer;
+        // append repeat
+        self.repeat.voltas[0].iter().for_each(|line| writer.append_line(line));
+        // ready to store next volta
+        self.repeat.current += 1;
+        // if the next volta is already stored (∴ won't appear in input)
+        if self.repeat.voltas.len() > self.repeat.current && self.repeat.voltas[self.repeat.current].len() > 0 {
+            // append current volta
+            self.repeat.voltas[self.repeat.current].iter().for_each(|line| writer.append_line(line));
+            // append repeat agait
+            self.repeat.voltas[0].iter().for_each(|line| writer.append_line(line));
+            self.repeat.current += 1;
+        }
+    }
+    fn parse_start(&mut self, token: &str) {
+        match token.strip_prefix(REPEAT) {
+            Some(":") => self.repeat.start(&[0]),
+            Some(s) => self.repeat.start(&s.split('.').filter(
+                |ch| !ch.is_empty()
+            ).flat_map(
+                |ch| ch.parse()
+            ).collect::<Vec<usize>>()),
+            _ => panic!("Invalid repeat start token: {}", token),
+        }
+    }
+    /// parse a line of input as a note
+    fn parse_notes<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) -> Result<()> {
+        let (mut offset, mut len) = (0, 0);
+        let mut size = self.writer.buffer.len();
+        tokens.for_each(|token: &str| match token.chars().next() {
+            // note length
             Some(b) if b.is_ascii_digit() => {
                 len = self.parse_len(token);
+                // need more space for this len
                 if len > size {
                     size = len;
-                    self.buffer.resize(size, 0);
+                    self.writer.buffer.resize(len, 0);
                 }
-                // always take shortest len
+                // always set offset as shortest len
                 if offset == 0 || len < offset { offset = len; }
-                // half note length of staccato
+                // stacatto ==> half note length
                 if token.ends_with(STACCATO) { len /= 2; }
-            }
-            _ => {
-                // parse token as note
-                if !self.notes.contains_key(token) {
-                    self.notes.insert(token.to_string(), ntof(token.as_bytes()));
-                }
-                let freq = *self.notes.get(token).unwrap();
-                self.append(len, freq);
-                repeat.push(len, freq);
-            }
-        });
-        repeat.resize(size, offset);
-        repeat.flush();
-        Ok(self.flush(offset)?)
-    }
-    /// parse a token as length of a note and return number of frames
-    fn parse_len(&self, token: &str) -> usize {
-        // assume first character is ascii digit
-        let length = match token.len() {
-            // e.g. "8" for quaver
-            _ if token.bytes().all(|b| b.is_ascii_digit()) => 1.0 / token.parse::<f64>().unwrap(),
-            // e.g. "4." for dotted crotchet
-            2 if token.ends_with(DOTTED) => 1.5 / token.strip_suffix(DOTTED).unwrap().parse::<f64>().unwrap(),
-            // e.g. "8*" for quaver with staccato
-            2 if token.ends_with(STACCATO) => 1.0 / token.strip_suffix(STACCATO).unwrap().parse::<f64>().unwrap(),
-            // e.g. "8+16" for a tie from quaver to semiquaver
-            _ if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.split(TIE)
-                .map(|s| 1.0 / s.parse::<f64>().unwrap())
-                .sum(),
-            _ => {
-                assert!(false, "Unknown token as note length: {:?}", token);
-                0.0
             },
+            // note value
+            _ => {
+                let freq = *self.notes.entry(token.to_string()).or_insert(ntof(token.as_bytes()));
+                self.writer.append(len, freq);
+                self.repeat.push(len, freq);
+            },
+        });
+        self.repeat.flush(size, offset);
+        Ok(self.writer.flush(offset)?)
+    }
+    /// parse a token as note length
+    /// returns number of frames
+    fn parse_len(&mut self, token: &str) -> usize {
+        fn strip(token: &str, suffix: char, scale: f64) -> f64 {
+            scale / token.strip_suffix(suffix).unwrap().parse::<f64>().unwrap()
+        }
+        let length = match token.parse::<f64>() {
+            Ok(len) => 1.0 / len,
+            Err(..) => match token.chars().last() {
+                Some(DOTTED) => strip(token, DOTTED, 1.5),
+                // the actual node length will be parsed later
+                Some(STACCATO) => strip(token, STACCATO, 1.0),
+                _ if token.chars().all(
+                    |ch| ch.is_ascii_digit() || ch == TIE
+                ) => token.split(TIE).flat_map(|s| s.parse::<f64>()).map(|f| 1.0 / f).sum(),
+                _ => panic!("Unknown token as node length: {}", token)
+            }
         };
-        //     ((      duration in seconds       )  number of frames)
-        return ((length * 240.0 / self.bpm as f64) * self.rate as f64) as usize;
+        ((length * 240.0 / self.writer.bpm as f64) * self.writer.rate as f64) as usize
     }
     //#endregion parse input
 }
