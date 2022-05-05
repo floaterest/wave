@@ -1,4 +1,4 @@
-use crate::Wave;
+use crate::writer::Writer;
 
 #[derive(Clone)]
 pub struct Line {
@@ -14,11 +14,5 @@ impl Line {
             offset: 0,
             notes: vec![]
         }
-    }
-    pub fn append(&self, to: &mut Wave) {
-        if self.size == 0 { return; }
-        to.resize(self.size);
-        self.notes.iter().for_each(|(n, freq)| to.append(*n, *freq));
-        to.flush(self.offset).unwrap();
     }
 }
