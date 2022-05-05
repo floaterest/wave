@@ -166,7 +166,7 @@ impl Wave {
             // e.g. "8*" for quaver with staccato
             2 if token.ends_with(STACCATO) => 1.0 / token.strip_suffix(STACCATO).unwrap().parse::<f64>().unwrap(),
             // e.g. "8+16" for a tie from quaver to semiquaver
-            3 if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.split(TIE)
+            _ if token.chars().all(|ch| ch.is_ascii_digit() || ch == TIE) => token.split(TIE)
                 .map(|s| 1.0 / s.parse::<f64>().unwrap())
                 .sum(),
             _ => {
