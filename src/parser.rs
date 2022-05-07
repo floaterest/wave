@@ -29,9 +29,8 @@ impl Parser {
             notes: HashMap::new(),
         }
     }
-    //#region parse input
-    /// parse iter of lines
-    pub fn parse<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
+    /// parse lines of input and write wave file
+    pub fn write<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
         self.writer.start(self.buffer.fps)?;
         let lines = lines.map(|line| line.trim().to_string()).filter(|line| line.len() > 0);
         for line in lines {
@@ -40,7 +39,7 @@ impl Parser {
         self.writer.write(self.buffer.drain(self.buffer.len()))?;
         Ok(self.writer.finish()?)
     }
-    /// parse a line of input
+    /// parse line as input
     fn parse_line(&mut self, line: String) -> Result<()> {
         Ok(match line.split_whitespace() {
             sw if line.contains(REPEAT) => self.parse_repeat(sw),
@@ -51,6 +50,7 @@ impl Parser {
             _ => {},
         })
     }
+    /// parse line as repeat instructions
     fn parse_repeat<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) {
         tokens.for_each(|token: &str| match token {
             _ if token.ends_with(REPEAT) => self.parse_end(token),
@@ -58,41 +58,20 @@ impl Parser {
             _ => panic!("Invalid repeat token: {}", token)
         })
     }
+    /// parse tokenas repeat end
     fn parse_end(&mut self, token: &str) {
         match token.strip_suffix(REPEAT) {
             // end all voltas
             Some("") => self.repeat.clear(),
             Some(":") => {
-                self.rep();
+                self.repeat.repeat(&mut self.buffer, &mut self.writer);
                 // if doesn't have voltas starting from 1
                 if self.repeat.voltas.len() == 1 { self.repeat.clear(); }
             }
             _ => panic!("Invalid repeat end token: {}", token)
         }
     }
-    fn write_volta(&mut self, i: usize) {
-        let buffer = &mut self.buffer;
-        for line in self.repeat.voltas[i].iter() {
-            if line.size == 0 { return; }
-            buffer.resize(line.size);
-            line.notes.iter().for_each(|(n, freq)| buffer.add(*n, *freq));
-            self.writer.write(buffer.drain(line.offset)).unwrap();
-        }
-    }
-    pub fn rep(&mut self) {
-        // append repeat
-        self.write_volta(0);
-        // ready to store next volta
-        self.repeat.current += 1;
-        // if the next volta is already stored (∴ won't appear in input)
-        if self.repeat.voltas.len() > self.repeat.current && self.repeat.voltas[self.repeat.current].len() > 0 {
-            // append current volta
-            self.write_volta(self.repeat.current);
-            // append repeat again
-            self.write_volta(0);
-            self.repeat.current += 1;
-        }
-    }
+    /// parse token as repeat start
     fn parse_start(&mut self, token: &str) {
         match token.strip_prefix(REPEAT) {
             Some(":") => self.repeat.start(&[0]),
@@ -152,5 +131,4 @@ impl Parser {
         };
         ((length * 240.0 / self.buffer.bpm as f64) * self.buffer.fps as f64) as usize
     }
-    //#endregion parse input
 }

@@ -30,5 +30,5 @@ fn main() -> Result<()> {
     let fps = 12000;
     let mut wave = Parser::new(File::create(output)?, fps, amplitude);
     let reader = BufReader::new(File::open(input)?);
-    Ok(wave.parse(reader.lines().flatten())?)
+    Ok(wave.write(reader.lines().flatten())?)
 }
