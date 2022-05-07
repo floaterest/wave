@@ -1,4 +1,11 @@
-extern crate core;
+use std::{
+    env,
+    fs::File,
+    io::{BufRead, BufReader, Result},
+};
+
+use repeat::Repeat;
+use wave::Wave;
 
 mod note;
 mod wave;
@@ -6,14 +13,6 @@ mod curves;
 mod repeat;
 mod line;
 mod writer;
-
-use std::{
-    env,
-    fs::File,
-    io::{BufRead, BufReader, Result},
-};
-use wave::Wave;
-use repeat::Repeat;
 
 pub const DOTTED: char = '.';
 pub const STACCATO: char = '*';
