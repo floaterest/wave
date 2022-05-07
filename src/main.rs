@@ -4,14 +4,15 @@ use std::{
     io::{BufRead, BufReader, Result},
 };
 
-use wave::Wave;
+use parser::Parser;
 
 mod note;
-mod wave;
+mod parser;
 mod curves;
 mod repeat;
 mod line;
 mod writer;
+mod buffer;
 
 fn io() -> (String, String) {
     let args: Vec<String> = env::args().collect();
@@ -27,7 +28,7 @@ fn main() -> Result<()> {
 
     let amplitude = i16::MAX as f64 / 6.0; // maximum 6 notes at a time
     let fps = 12000;
-    let mut wave = Wave::new(File::create(output)?, fps, amplitude);
+    let mut wave = Parser::new(File::create(output)?, fps, amplitude);
     let reader = BufReader::new(File::open(input)?);
     Ok(wave.parse(reader.lines().flatten())?)
 }
