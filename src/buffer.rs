@@ -1,6 +1,7 @@
 use std::f64::consts::PI;
 
 use crate::curves::{sine, sinusoid};
+use crate::line::Line;
 
 pub struct Buffer {
     /// current bpm
@@ -27,7 +28,7 @@ impl Buffer {
     pub fn drain(&mut self, offset: usize) -> Vec<i16> {
         self.buffer.drain(..offset).collect()
     }
-    /// add a note to existing waveform (buffer)
+    /// add a note to buffer
     pub fn add(&mut self, len: usize, freq: f64) {
         // no need to add rests
         if freq == 0.0 { return; }
@@ -39,5 +40,11 @@ impl Buffer {
         (0..len).map(
             |i| a * sine(i as f64, len as f64, period, &sinusoid)
         ).enumerate().for_each(|(i, y)| self.buffer[i] += y as i16)
+    }
+    /// add a line to buffer
+    pub fn add_line(&mut self, line: &Line) {
+        if line.size == 0 { return; }
+        self.resize(line.size);
+        line.notes.iter().for_each(|(n, freq)| self.add(*n, *freq));
     }
 }

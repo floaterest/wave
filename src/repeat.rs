@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
+use crate::buffer::Buffer;
 use crate::line::Line;
+use crate::writer::Writer;
 
 pub struct Repeat {
     pub voltas: Vec<Vec<Line>>,
@@ -50,4 +52,30 @@ impl Repeat {
         self.voltas.clear();
         self.current = 1;
     }
+
+    //#region write
+    /// write a volta
+    fn write(&mut self, v: usize, buffer: &mut Buffer, write: &mut dyn FnMut(Vec<i16>)) {
+        for line in self.voltas[v].iter() {
+            buffer.add_line(line);
+            write(buffer.drain(line.offset));
+        }
+    }
+    /// repeat all needed voltas
+    pub fn repeat(&mut self, buffer: &mut Buffer, writer: &mut Writer) {
+        let mut write = |data| writer.write(data).unwrap();
+        // append repeat
+        self.write(0, buffer, &mut write);
+        // ready to store next volta
+        self.current += 1;
+        // if the next volta is already stored (∴ won't appear in input)
+        if self.voltas.len() > self.current && self.voltas[self.current].len() > 0 {
+            // append current volta
+            self.write(self.current, buffer, &mut write);
+            // append repeat again
+            self.write(0, buffer, &mut write);
+            self.current += 1;
+        }
+    }
+    //#endregion write
 }
