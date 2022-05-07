@@ -2,9 +2,14 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Result;
 
-use crate::{DOTTED, Repeat, REPEAT, STACCATO, TIE};
 use crate::note::ntof;
+use crate::repeat::Repeat;
 use crate::writer::Writer;
+
+pub const DOTTED: char = '.';
+pub const STACCATO: char = '*';
+pub const TIE: char = '+';
+pub const REPEAT: char = '|';
 
 pub struct Wave {
     writer: Writer,

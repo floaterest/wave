@@ -4,7 +4,6 @@ use std::{
     io::{BufRead, BufReader, Result},
 };
 
-use repeat::Repeat;
 use wave::Wave;
 
 mod note;
@@ -13,11 +12,6 @@ mod curves;
 mod repeat;
 mod line;
 mod writer;
-
-pub const DOTTED: char = '.';
-pub const STACCATO: char = '*';
-pub const TIE: char = '+';
-pub const REPEAT: char = '|';
 
 fn io() -> (String, String) {
     let args: Vec<String> = env::args().collect();
@@ -35,6 +29,5 @@ fn main() -> Result<()> {
     let fps = 12000;
     let mut wave = Wave::new(File::create(output)?, fps, amplitude);
     let reader = BufReader::new(File::open(input)?);
-    wave.parse(reader.lines().flatten())?;
-    Ok(())
+    Ok(wave.parse(reader.lines().flatten())?)
 }
