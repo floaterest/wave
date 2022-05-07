@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Result;
 use crate::{DOTTED, Repeat, REPEAT, STACCATO, TIE};
-use crate::line::Line;
 use crate::note::ntof;
 use crate::writer::Writer;
 
@@ -23,13 +22,12 @@ impl Wave {
     }
     //#region parse input
     /// parse iter of lines
-    pub fn parse<I: Iterator<Item=String>>(&mut self, mut lines: I) -> Result<()> {
+    pub fn parse<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
         self.writer.start()?;
-        lines.map(
-            |line| line.trim().to_string()
-        ).filter(
-            |line| line.len() > 0
-        ).flat_map(|line| self.parse_line(line)).collect::<()>();
+        let lines = lines.map(|line| line.trim().to_string()).filter(|line| line.len() > 0);
+        for line in lines {
+            self.parse_line(line)?;
+        }
         Ok(self.writer.finish()?)
     }
     /// parse a line of input
