@@ -76,7 +76,7 @@ impl Wave {
         if self.repeat.voltas.len() > self.repeat.current && self.repeat.voltas[self.repeat.current].len() > 0 {
             // append current volta
             self.repeat.voltas[self.repeat.current].iter().for_each(|line| writer.append_line(line));
-            // append repeat agait
+            // append repeat again
             self.repeat.voltas[0].iter().for_each(|line| writer.append_line(line));
             self.repeat.current += 1;
         }
