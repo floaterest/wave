@@ -1,8 +1,9 @@
 use std::f64::consts::PI;
 use std::fs::File;
-use std::slice::from_raw_parts;
-use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
+use std::mem::{size_of, transmute};
+use std::slice::from_raw_parts;
+
 use crate::curves::sinusoid;
 use crate::line::Line;
 

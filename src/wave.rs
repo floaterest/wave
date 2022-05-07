@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Result;
+
 use crate::{DOTTED, Repeat, REPEAT, STACCATO, TIE};
 use crate::note::ntof;
 use crate::writer::Writer;
