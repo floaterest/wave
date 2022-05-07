@@ -1,5 +1,3 @@
-use crate::writer::Writer;
-
 #[derive(Clone)]
 pub struct Line {
     pub size: usize,

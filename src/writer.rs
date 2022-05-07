@@ -1,11 +1,8 @@
-use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::slice::from_raw_parts;
 use std::mem::{size_of, transmute};
 use std::io::{Result, Seek, SeekFrom, Write};
-use crate::note::ntof;
-use crate::{DOTTED, Repeat, STACCATO, TIE};
 use crate::curves::sinusoid;
 use crate::line::Line;
 
