@@ -1,70 +1,34 @@
 # Wave
 > Generate `.wav` file from user input
 
-# Usage
-- from executable: `wave input.txt output.wav`
-- from source: `cargo run input.txt output.wav`
+## Usage
+- from binary: `wav. [input] [output]`
+- from source code: `cargo r [input] [output]`
 
-<details><summary>Input example:</summary>
+### Command Line Arguments
 
-the following staff:
+- `<input>`: input text file, `input.txt` by default
+- `<output>`: output wav file, `output.wav` by default
 
-![](/assets/ddrive.png)
+## Input Format
 
-<details><summary>can be transcribed as: <code>input.txt</code></summary>
+see [input.md](./doc/input.md)
 
-```
-140
-==== bar 1 ====
-    8 d5 d4
-    8 a4 a3
-    8 d5 d4
-    8 g4 g3
-    8 d5 d4
-    8 f4 f3
-    8 e4 e3
-    8 c5 c4
-==== bar 2 ====
-    8 e4 e3
-    8 f4 f3
-    8 c5 c4
-    8 f5 f4
-    8 e5 e4
-    8 c5 c4
-    8 g4 g3
-    8 c5 c4
-==== bar 3 ====
-    8 e4 e3
-    8 f4 f3
-    8 c5 c4
-    8 f5 f4
-    8 g5 g4
-    8 e5 e4
-    8 c5 c4
-    16 e5
-    16 f5
-==== bar 4 ====
-    8 e5 c5
-    8 c5 g4
-    8 g4 e4
-    8 d5 a4
-    8 a4 f4
-    8 f4 d4
-    8 c5 c4
-    8 e4 e3
-```
-</details>
+## Programmer's Note
 
-and the output will be:
 
-https://user-images.githubusercontent.com/56704092/159800609-c127c967-e6b6-4a3d-b443-045ae1330b33.mp4
-
-</details>
-
-# Programmer's Note
-- [`note.rs`](/src/note.rs)
-    - convert note to key number to frequency
-- [`wave.rs`](/src/wave.rs)
-    - `.wav` file structure
-    - generate sine wave
-    - convert literally anything into bytes (`[u8]`) using unsafe `transmute()`
+- [writer.rs](./src/writer.rs)
+  - write `.wav` file headers
+  - get file size from metadata
+- [stores/waveform.rs](./src/stores/waveform.rs)
+  - generate waveform for `.wav` given frequency and frame count
+- [parsers/capture.rs](./src/parsers/capture.rs)
+  - use `Rc<T>` to avoid duplicate data stored in heap
+- [parsers/input.rs](./src/parsers/input.rs)
+  - use `Peekable<T>` for token lookaheads
+- [parsers/note.rs](./src/parsers/note.rs)
+  - convert pitch in scientific notation to it's frequency in `O(1)` time
+- [parsers/repeat.rs](./src/parsers/repeat.rs)
+  - use `Rc<RefCell<T>>` to avoid duplicate and allow mutable reference
+  - use `BTreeMap<K,V>` for ordered map
+  - higher order functions
