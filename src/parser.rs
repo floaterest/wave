@@ -117,8 +117,8 @@ impl Parser {
         fn strip(token: &str, suffix: char, scale: f64) -> f64 {
             scale / token.strip_suffix(suffix).unwrap().parse::<f64>().unwrap()
         }
-        let length = match token.parse::<f64>() {
-            Ok(len) => 1.0 / len,
+        let length = match token.parse::<usize>() {
+            Ok(value) => 1.0 / value as f64,
             Err(..) => match token.chars().last() {
                 Some(DOTTED) => strip(token, DOTTED, 1.5),
                 // the actual node length will be parsed later
