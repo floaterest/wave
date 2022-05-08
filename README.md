@@ -2,7 +2,7 @@
 > Generate `.wav` file from user input
 
 ## Usage
-- from binary: `wav. [input] [output]`
+- from binary: `wave [input] [output]`
 - from source code: `cargo r [input] [output]`
 
 ### Command Line Arguments
