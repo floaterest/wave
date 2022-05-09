@@ -48,3 +48,47 @@
 ```
 </details>
 
+### Tie
+> connect multiple durations OF THE SAME FREQUENCY
+
+![](../assets/tie.png)
+<details><summary>input</summary>
+
+```
+==== BPM ====
+    144
+=============
+    8 c#5
+    8 e5
+    8 g#5
+    8+8 d#5
+    8 f#5
+    8 b5
+    8+8 g#5
+
+    8 f#5
+    8 e5
+    8+8 d#5
+    8 e5
+    8 d#5
+    8 b4
+
+    8 g#4
+    8 c#5
+    8 e5
+    8+8 c5
+    8 d#5
+    8 g#5
+    8+8 e5
+
+    8 c#5
+    8 a4
+    8 e5
+    16 d#5
+    32 e5
+    32 d#5
+    16 d#5
+    8 c#5
+    8 d#5
+```
+</details>
