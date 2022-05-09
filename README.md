@@ -14,7 +14,7 @@
 
 see [input.md](./doc/input.md)
 
-## Programmer's Note
+# Programmer's Note
 
 
 - [writer.rs](./src/writer.rs)
@@ -33,3 +33,7 @@ see [input.md](./doc/input.md)
   - use `Rc<RefCell<T>>` to avoid duplicate and allow mutable reference
   - use `BTreeMap<K,V>` for ordered map
   - higher order functions
+
+# Todo
+
+- [] find a shorter example of tie
