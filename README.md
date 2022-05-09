@@ -28,6 +28,7 @@ see [input.md](./doc/input.md)
   - use `Peekable<T>` for token lookaheads
 - [parsers/note.rs](./src/parsers/note.rs)
   - convert pitch in scientific notation to it's frequency in `O(1)` time
+  - use `HashMap<K,V>` to cache the frequencies
 - [parsers/repeat.rs](./src/parsers/repeat.rs)
   - use `Rc<RefCell<T>>` to avoid duplicate and allow mutable reference
   - use `BTreeMap<K,V>` for ordered map
