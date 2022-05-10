@@ -92,3 +92,44 @@
     8 d#5
 ```
 </details>
+
+
+### Staccato
+> half length but keeps the size that it occupies
+
+![](../assets/staccato.png)
+<details><summary>input</summary>
+
+```
+==== BPM ====
+    151
+=============
+    4* bb3 eb4 bb4
+    4* f4 bb4 f5
+    4* c4 eb4 c5
+    4* f4 c5 f5
+
+    4* db4 bb4 db5
+    8 eb4 c5 eb5
+    8 f4 db5 f5
+    4* eb4 c5 eb5
+    4* g4 eb5 g5
+
+    8 bb4 f5 bb5
+    8 f4 db5 f5
+    8 c5 ab5 c6
+    8 db5 bb5 db6
+    8 c5 ab5 c6
+    16 db5 bb5 db6
+    16 c5 ab5 c6
+    8 bb4 db5 bb5
+    8* ab4 db5 ab5
+
+    8 f4 db5 f5
+    8 ab4 f5 ab5
+    8 eb4 c5 eb5
+    8 f4 db5 f5
+    2 db4 bb4 db5
+```
+</details>
+
