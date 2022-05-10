@@ -36,4 +36,4 @@ see [input.md](./doc/input.md)
 
 # Todo
 
-- [] find a shorter example of tie
+- [ ] find a shorter example of tie
