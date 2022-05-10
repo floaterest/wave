@@ -36,4 +36,12 @@ see [input.md](./doc/input.md)
 
 # Todo
 
-- [ ] find a shorter example of tie
+- note
+  - [ ] find a shorter example of tie
+  - [ ] implement double dotted `..`
+  - [ ] implement slur (idk how)
+  - [ ] explain tuplet
+  - [ ] implement dynamics (`pp` `mp` `ff` `>` etc)
+  - [ ] implement [Tenuto](https://en.wikipedia.org/wiki/Tenuto) (idk how)
+  - [ ] implement trill
+  - [ ] implement upper/lower mordent
