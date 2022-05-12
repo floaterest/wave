@@ -29,7 +29,11 @@ each line of the input file can be one of the 4 followings:
 ## Repeat
 > don't repeat yourself (aka DRY code)
 
-see [repeat.md](./repeat.md)
+- rules:
+  - if a line contains a repeat token, then the line can only contain repeat tokens
+  - if a line contains a repeat token, then the next line must not be a repeat line (because the program needs to lookahead for the next repeat token)
+- tokens:
+  - see [repeat.md](./repeat.md)
 
 
 ## Chords
