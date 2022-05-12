@@ -37,7 +37,6 @@ e.g. to produce `A B A C A B A C`
   :| |4.
       C
   |
-  
   ```
 - optimised method:
   ```
