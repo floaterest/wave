@@ -17,7 +17,7 @@ there are 5 types of tokens, given a key `a`
 
 # Usage
 ## Capture
-> (plays and) captures a chord and stores to a queue<br>
+> captures (and writes) a chord and stores to a queue<br>
 > `()` because it's like captures from Regex
 
 ### Capture a Chord
