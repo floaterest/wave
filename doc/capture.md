@@ -27,7 +27,7 @@ there are 5 types of tokens, given a key `a`
 (C) 4 c4 e4 g4
 ```
 
-### Capture a Sequence as a Queue
+### Capture a Sequence to a Queue
 > e.g. push back the first 3 notes of E major scale named `E`
 ```
 (E) 4 e4
