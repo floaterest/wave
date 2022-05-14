@@ -10,8 +10,8 @@
 there are 5 types of tokens, given a key `a`
 
 - capture to `a`: `(a)`
-- pop front of `a`: `<a>`
 - get front of `a`: `[a]`
+- pop front of `a`: `<a>`
 - rotate `a`: `|a|`
 - clear `a`: `{a}`
 
