@@ -1,19 +1,27 @@
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::Result;
+use std::rc::Rc;
 
-use crate::buffers::{Repeat, Waveform};
+use crate::buffers::{CaptureMap, Repeat, Waveform};
 use crate::line::{Chord, Line};
 use crate::parsers::NoteParser;
 use crate::writer::Writer;
 
 pub const STACCATO: char = '*';
 pub const REPEAT: char = '|';
+pub const CAPTURE: &str = "([{";
+
+fn valid(ch: char) -> bool {
+    ch.is_ascii_digit() || CAPTURE.contains(ch)
+}
 
 pub struct Parser {
     writer: Writer,
     repeat: Repeat,
     wave: Waveform,
     note: NoteParser,
+    capture: CaptureMap,
 }
 
 impl Parser {
@@ -23,6 +31,7 @@ impl Parser {
             writer: Writer::new(dest),
             repeat: Repeat::new(),
             note: NoteParser::new(),
+            capture: CaptureMap::new(),
         }
     }
     /// parse lines of input and write wave file
@@ -43,7 +52,7 @@ impl Parser {
     fn parse(&mut self, line: String) {
         match line.split_whitespace() {
             sw if line.contains(REPEAT) => self.parse_repeat(sw),
-            sw if line.chars().next().unwrap().is_ascii_digit() => match line.parse::<u16>() {
+            sw if valid(line.chars().next().unwrap()) => match line.parse::<u16>() {
                 Ok(bpm) => self.wave.bpm = bpm,
                 Err(..) => self.parse_line(sw),
             }
@@ -83,25 +92,47 @@ impl Parser {
     }
     fn parse_line<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) {
         let mut line = Line::new();
-        let mut chord = Chord::new();
-        tokens.for_each(|token| match token.chars().next() {
-            // note length
-            Some(ch) if ch.is_ascii_digit() => {
-                // start new chord
-                if !chord.is_empty() { line.push(chord.drain()); }
-                let length = self.wave.frame_count(Chord::parse_length(token));
-                chord.length = length;
-                chord.size = if token.ends_with(STACCATO) { length / 2 } else { length };
-            },
-            // note pitch
-            Some(ch) if ch.is_ascii_alphabetic() => {
-                chord.push(self.note.frequency(token));
+        let mut chord = Rc::new(RefCell::new(Chord::new()));
+        for token in tokens {
+            match token.chars().next() {
+                // length
+                Some(ch) if ch.is_ascii_digit() => {
+                    chord = Rc::new(RefCell::new(Chord::new()));
+                    line.push(Rc::clone(&chord));
+                    let length = self.wave.frame_count(Chord::parse_length(token));
+                    chord.borrow_mut().length = length;
+                    chord.borrow_mut().size = if token.ends_with(STACCATO) { length / 2 } else { length };
+                }
+                // pitch
+                Some(ch) if ch.is_ascii_alphabetic() => {
+                    chord.borrow_mut().push(self.note.frequency(token));
+                }
+                Some(ch) if CAPTURE.contains(ch) => {
+                    let key = Rc::new(CaptureMap::parse_key(token));
+                    match ch {
+                        '(' => {
+                            self.capture.push(Rc::clone(&key), Rc::clone(&chord));
+                        },
+                        '[' | '{' => {
+                            let cur = self.capture.current(&key);
+                            chord.borrow_mut().extend(&cur.borrow());
+                            line.push(Rc::clone(&chord));
+                            let to = if ch == '[' {
+                                &mut self.capture.to_shift
+                            } else {
+                                &mut self.capture.to_clear
+                            };
+                            to.insert(key);
+                        }
+                        _ => {}
+                    }
+                }
+                _ => panic!("Invalid token as line of chords: {}", token),
             }
-            _ => panic!("Invalid token as line of chords: {}", token),
-        });
-        line.push(chord);
+        }
         self.wave.fold_with_line(&line);
         self.writer.write(self.wave.drain_until(line.offset())).unwrap();
         self.repeat.push(line);
+        self.capture.update();
     }
 }

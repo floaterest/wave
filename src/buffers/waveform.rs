@@ -19,7 +19,7 @@ impl Waveform {
         Self { amp, bpm: 0, fps, buffer: Vec::new() }
     }
     /// return number of frames given the length as beat
-    pub fn frame_count(&self,beat:f64)->usize{
+    pub fn frame_count(&self, beat: f64) -> usize {
         //      duration in seconds     ) number of frames )
         ((beat * 240.0 / self.bpm as f64) * self.fps as f64) as usize
     }
@@ -45,8 +45,9 @@ impl Waveform {
             self.buffer.resize(size, 0);
         }
         for chord in line.chords() {
-            for freq in chord.frequencies.iter() {
-                self.fold_with_note(chord.length, *freq);
+            let length = chord.borrow().length;
+            for freq in chord.borrow().frequencies.iter() {
+                self.fold_with_note(length, *freq);
             }
         }
     }
