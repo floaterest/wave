@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::slice::Iter;
 
 pub const DOTTED: char = '.';
@@ -6,6 +8,7 @@ pub const TIE: char = '+';
 
 #[derive(Clone, Debug)]
 pub struct Chord {
+    // made this field only for you, staccato
     pub size: usize,
     pub length: usize,
     pub frequencies: Vec<f64>,
@@ -39,20 +42,21 @@ impl Chord {
     pub fn push(&mut self, frequency: f64) {
         self.frequencies.push(frequency);
     }
-    pub fn is_empty(&self) -> bool {
-        self.size == 0 || self.length == 0 || self.frequencies.is_empty()
-    }
-    pub fn drain(&mut self) -> Self {
-        let copy = self.clone();
-        (self.size, self.length) = (0, 0);
-        self.frequencies.clear();
-        copy
+    pub fn extend(&mut self, rhs: &Chord) {
+        if self.frequencies.is_empty() {
+            *self = rhs.clone()
+        } else {
+            assert_eq!(self.length, rhs.length, "attempt to add a chord without equal length");
+            assert_eq!(self.size, rhs.size, "attempt to add a chord without equal size");
+            self.frequencies.extend(rhs.frequencies.iter());
+        }
     }
 }
 
+
 #[derive(Clone, Debug)]
 pub struct Line {
-    chords: Vec<Chord>
+    chords: Vec<Rc<RefCell<Chord>>>
 }
 
 impl Line {
@@ -60,15 +64,19 @@ impl Line {
         Self { chords: Vec::new() }
     }
     pub fn offset(&self) -> usize {
-        self.chords.iter().map(|ch| ch.length).min().unwrap()
+        self.chords.iter().map(
+            |ch| RefCell::borrow(ch).length
+        ).min().unwrap()
     }
     pub fn size(&self) -> usize {
-        self.chords.iter().map(|ch| ch.size).max().unwrap()
+        self.chords.iter().map(
+            |ch| RefCell::borrow(ch).size
+        ).max().unwrap()
     }
-    pub fn push(&mut self, chord: Chord) {
+    pub fn push(&mut self, chord: Rc<RefCell<Chord>>) {
         self.chords.push(chord);
     }
-    pub fn chords(&self) -> Iter<Chord> {
+    pub fn chords(&self) -> Iter<Rc<RefCell<Chord>>> {
         self.chords.iter()
     }
 }
