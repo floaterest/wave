@@ -48,20 +48,20 @@ impl InputParser {
     }
     /// parse a line of input
     fn parse_line(&mut self, line: String) {
-        match line.split_whitespace() {
+        if line.contains(REPEAT) {
             // parse as repeat
-            sw if line.contains(REPEAT) => self.parse_repeat(sw),
+            self.parse_repeat(line);
+        } else if valid(line.chars().next().unwrap()) {
             // parse as chords or captures
-            sw if valid(line.chars().next().unwrap()) => match line.parse() {
+            match line.parse() {
                 Ok(bpm) => self.wave.bpm = bpm,
-                Err(..) => self.parse_chords(sw),
+                Err(..) => self.parse_chords(line),
             }
-            _ => { /* ignore comment */ },
-        };
+        }
     }
     /// parse line as repeat instructions
-    fn parse_repeat<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) {
-        tokens.for_each(|token: &str| match token {
+    fn parse_repeat(&mut self, tokens: String) {
+        tokens.split_ascii_whitespace().for_each(|token: &str| match token {
             _ if token.ends_with(REPEAT) => self.parse_end(token),
             _ if token.starts_with(REPEAT) => self.parse_start(token),
             _ => panic!("Invalid repeat token: {}", token)
@@ -93,14 +93,18 @@ impl InputParser {
         }
     }
     /// parse line as chords or captures
-    fn parse_chords<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) {
+    fn parse_chords(&mut self, tokens: String) {
         let mut line = Line::new();
         let mut chord = Rc::new(RefCell::new(Chord {
             size: 0,
             length: 0,
             frequencies: Vec::new()
         }));
-        tokens.for_each(|token: &str| match token.chars().next() {
+        // if starts with capture
+        if !tokens.starts_with(|ch: char| ch.is_ascii_digit()) {
+            line.push(Rc::clone(&chord));
+        }
+        tokens.split_ascii_whitespace().for_each(|token: &str| match token.chars().next() {
             // note length
             Some(ch) if ch.is_ascii_digit() => {
                 // make new chord and push to line
@@ -127,7 +131,6 @@ impl InputParser {
                     '[' | '{' => {
                         let captured = self.capture.get_by_key(&key);
                         chord.borrow_mut().extend(&captured.borrow());
-                        line.push(Rc::clone(&chord));
                         let to = if ch == '[' {
                             &mut self.capture.to_shift
                         } else {
