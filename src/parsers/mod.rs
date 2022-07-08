@@ -1,7 +1,7 @@
 //! parse input
 pub use note::NoteParser;
-pub use parser::InputParser;
+pub use input::InputParser;
 
 mod note;
-mod parser;
+mod input;
 
