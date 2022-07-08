@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
+use crate::buffers::Line;
 use crate::buffers::Waveform;
-use crate::line::Line;
 use crate::writer::Writer;
 
 pub struct Repeat {
     pub voltas: Vec<Vec<Rc<Line>>>,
-    pub current: usize,
-    pub to_store: HashSet<usize>
+    current: usize,
+    to_store: HashSet<usize>
 }
 
 impl Repeat {
@@ -57,7 +57,7 @@ impl Repeat {
         // ready to store next volta
         self.current += 1;
         // if the next volta is already stored (∴ won't appear in input)
-        if self.voltas.len() > self.current && self.voltas[self.current].len() > 0 {
+        if self.current < self.voltas.len() && self.voltas[self.current].len() > 0 {
             // append current volta
             self.write(self.current, buffer, &mut write);
             // append repeat again

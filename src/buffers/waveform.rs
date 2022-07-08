@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
+use crate::buffers::Line;
 use crate::curves::{sine, sinusoid};
-use crate::line::Line;
 
 pub struct Waveform {
     /// current bpm
