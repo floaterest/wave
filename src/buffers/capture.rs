@@ -58,5 +58,7 @@ impl CaptureMap {
         for clear in self.to_clear.iter() {
             self.captures.remove(clear);
         }
+        self.to_shift.clear();
+        self.to_clear.clear();
     }
 }
