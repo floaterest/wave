@@ -1,17 +1,15 @@
-use std::{
-    env,
-    fs::File,
-    io::{BufRead, BufReader, Result},
-};
+use std::env;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Result};
 
-use parsers::Parser;
+use parsers::InputParser;
 
 mod curves;
-mod line;
 mod writer;
 mod parsers;
 mod buffers;
 
+/// read input.txt and/or write to output.wav by default
 fn io() -> (String, String) {
     let args: Vec<String> = env::args().collect();
     match args.len() {
@@ -24,9 +22,11 @@ fn io() -> (String, String) {
 fn main() -> Result<()> {
     let (input, output) = io();
 
-    let amplitude = i16::MAX as f64 / 6.0; // maximum 6 notes at a time
     let fps = 12000;
-    let mut wave = Parser::new(File::create(output)?, fps, amplitude);
+    // maximum 6 notes at a time
+    let amplitude = i16::MAX as f64 / 6.0;
+
+    let mut parser = InputParser::new(File::create(output)?, fps, amplitude);
     let reader = BufReader::new(File::open(input)?);
-    Ok(wave.write(reader.lines().flatten())?)
+    Ok(parser.write(reader.lines().flatten())?)
 }
