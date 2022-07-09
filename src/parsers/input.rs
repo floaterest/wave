@@ -130,6 +130,11 @@ impl InputParser {
                     },
                     '[' | '{' => {
                         let captured = self.capture.get_by_key(&key);
+                        let captured = if token.ends_with("^8") {
+                            Rc::new(RefCell::new(captured.borrow().scale(2.0)))
+                        } else if token.ends_with("_8") {
+                            Rc::new(RefCell::new(captured.borrow().scale(0.5)))
+                        } else { captured };
                         chord.borrow_mut().extend(&captured.borrow());
                         let to = if ch == '[' {
                             &mut self.capture.to_shift
