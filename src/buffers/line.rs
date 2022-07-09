@@ -40,10 +40,14 @@ impl Chord {
             }
         }
     }
-    /// scale all frequencies
-    // pub fn scale(&mut self, scale: f64) {
-    //     self.frequencies.iter_mut().for_each(|f| *f *= scale);
-    // }
+    /// scale all frequencies, return new Self
+    pub fn scale(&self, scale: f64) -> Self {
+        Self {
+            length: self.length,
+            size: self.size,
+            frequencies: self.frequencies.iter().map(|&f| f * scale).collect()
+        }
+    }
     /// push a new frequency to chord
     pub fn push(&mut self, frequency: f64) {
         self.frequencies.push(frequency);
