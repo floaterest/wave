@@ -4,15 +4,14 @@ use std::{
     io::{BufRead, BufReader, Result},
 };
 
-use parser::Parser;
+use parsers::Parser;
 
-mod note;
-mod parser;
 mod curves;
 mod repeat;
 mod line;
 mod writer;
 mod buffer;
+mod parsers;
 
 fn io() -> (String, String) {
     let args: Vec<String> = env::args().collect();
