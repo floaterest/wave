@@ -27,7 +27,7 @@ impl NoteParser {
             tones: TONES.iter().map(|(t, i)| (t.to_string(), *i)).collect()
         }
     }
-    /// convert note to key number, return None if rest
+    /// convert note to key number
     fn key_number(&self, note: &str) -> usize {
         let (tone, octave) = note.split_at(note.len() - 1);
         match (self.tones.get(tone), octave.parse::<i32>()) {
@@ -35,7 +35,7 @@ impl NoteParser {
             _ => panic!("Invalid token as note: {}", note),
         }
     }
-    /// accepts rests
+    /// convect note to frequency, returns 0.0 if note is rest
     pub fn frequency(&mut self, note: &str) -> f64 {
         if note.len() == 1 && !note.as_bytes()[0].is_ascii_alphanumeric() {
             // rest
