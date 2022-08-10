@@ -33,7 +33,7 @@ impl Parser {
         for line in lines {
             self.parse(line)?;
         }
-        self.writer.write(self.wave.drain(self.wave.len()))?;
+        self.writer.write(self.wave.drain_all())?;
         Ok(self.writer.finish()?)
     }
     /// parse line as input
@@ -106,7 +106,7 @@ impl Parser {
         });
         line.push(chord);
         self.repeat.push(&line);
-        self.wave.add_l(&line);
-        Ok(self.writer.write(self.wave.drain(line.offset()))?)
+        self.wave.add_line(&line);
+        Ok(self.writer.write(self.wave.drain_to(line.offset()))?)
     }
 }

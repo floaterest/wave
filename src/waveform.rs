@@ -18,19 +18,13 @@ impl Waveform {
     pub fn new(amp: f64, fps: u32) -> Self {
         Self { amp, bpm: 0, fps, buffer: Vec::new() }
     }
-    /// resize the buffer and fill with 0
-    pub fn resize(&mut self, size: usize) {
-        if self.buffer.len() < size {
-            self.buffer.resize(size, 0);
-        }
+    pub fn drain_to(&mut self, end: usize) -> Vec<i16> {
+        self.buffer.drain(..end).collect()
     }
-    pub fn len(&self) -> usize {
-        self.buffer.len()
+    pub fn drain_all(&mut self) -> Vec<i16> {
+        self.buffer.drain(..).collect()
     }
-    pub fn drain(&mut self, offset: usize) -> Vec<i16> {
-        self.buffer.drain(..offset).collect()
-    }
-    /// add a note to buffer
+    /// add a note to waveform
     pub fn add(&mut self, len: usize, freq: f64) {
         // no need to add rests
         if freq == 0.0 { return; }
@@ -43,19 +37,17 @@ impl Waveform {
             |i| a * sine(i as f64, len as f64, period, &sinusoid)
         ).enumerate().for_each(|(i, y)| self.buffer[i] += y as i16)
     }
-    pub fn add_l(&mut self, line: &Line) {
+    // add a line to waveform
+    pub fn add_line(&mut self, line: &Line) {
         let size = line.size();
         assert_ne!(size, 0, "Line size is 0 when trying to generate waveform!");
-        self.resize(size);
+        if self.buffer.len() < size {
+            self.buffer.resize(size, 0);
+        }
         for chord in line.chords() {
             for freq in chord.frequencies.iter() {
                 self.add(chord.length, *freq);
             }
         }
-        // line.chords().iter().flat_map(
-        //     |ch| ch.frequencies.iter().map(|freq| (ch.length, *freq))
-        // ).for_each(
-        //     |(len, freq)| self.add(len, freq)
-        // );
     }
 }
