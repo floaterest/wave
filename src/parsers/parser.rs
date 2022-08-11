@@ -104,8 +104,9 @@ impl Parser {
             _ => panic!("Invalid token as line of chords: {}", token),
         });
         line.push(chord);
-        self.repeat.push(&line);
         self.wave.add_line(&line);
-        Ok(self.writer.write(self.wave.drain_to(line.offset()))?)
+        self.writer.write(self.wave.drain_to(line.offset()))?;
+        self.repeat.push(line);
+        Ok(())
     }
 }
