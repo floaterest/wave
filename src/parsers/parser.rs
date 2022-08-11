@@ -1,10 +1,9 @@
 use std::fs::File;
 use std::io::Result;
 
+use crate::buffers::{Repeat, Waveform};
 use crate::line::{Chord, Line};
 use crate::parsers::NoteParser;
-use crate::repeat::Repeat;
-use crate::waveform::Waveform;
 use crate::writer::Writer;
 
 pub const STACCATO: char = '*';

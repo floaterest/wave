@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
+use crate::buffers::Waveform;
 use crate::line::Line;
-use crate::waveform::Waveform;
 use crate::writer::Writer;
 
 pub struct Repeat {
