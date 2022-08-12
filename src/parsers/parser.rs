@@ -28,23 +28,27 @@ impl Parser {
     /// parse lines of input and write wave file
     pub fn write<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
         self.writer.start(self.wave.fps)?;
-        let lines = lines.map(|line| line.trim().to_string()).filter(|line| line.len() > 0);
-        for line in lines {
-            self.parse(line)?;
-        }
+        lines.map(
+            |line| line.trim().to_string()
+        ).filter(
+            |line| line.len() > 0
+        ).for_each(
+            |line| self.parse(line)
+        );
+        // empty buffer in wave
         self.writer.write(self.wave.drain_all())?;
         Ok(self.writer.finish()?)
     }
     /// parse line as input
-    fn parse(&mut self, line: String) -> Result<()> {
-        Ok(match line.split_whitespace() {
+    fn parse(&mut self, line: String) {
+        match line.split_whitespace() {
             sw if line.contains(REPEAT) => self.parse_repeat(sw),
             sw if line.chars().next().unwrap().is_ascii_digit() => match line.parse::<u16>() {
                 Ok(bpm) => self.wave.bpm = bpm,
-                Err(..) => self.parse_line(sw)?,
+                Err(..) => self.parse_line(sw),
             }
             _ => {},
-        })
+        };
     }
     /// parse line as repeat instructions
     fn parse_repeat<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) {
@@ -73,27 +77,19 @@ impl Parser {
             Some(":") => self.repeat.start(&[0]),
             Some(s) => self.repeat.start(&s.split('.').filter(
                 |ch| !ch.is_empty()
-            ).flat_map(
-                |ch| ch.parse()
-            ).collect::<Vec<usize>>()),
+            ).flat_map(|ch| ch.parse()).collect::<Vec<usize>>()),
             _ => panic!("Invalid repeat start token: {}", token),
         }
     }
-    fn bton(&self, beat: f64) -> usize {
-        //          duration in seconds        )     number of frames    )
-        ((beat * 240.0 / self.wave.bpm as f64) * self.wave.fps as f64) as usize
-    }
-    fn parse_line<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) -> Result<()> {
+    fn parse_line<'a, I: Iterator<Item=&'a str>>(&mut self, tokens: I) {
         let mut line = Line::new();
         let mut chord = Chord::new();
         tokens.for_each(|token| match token.chars().next() {
             // note length
             Some(ch) if ch.is_ascii_digit() => {
-                if !chord.is_empty() {
-                    line.push(chord.clone());
-                    chord.clear();
-                }
-                let length = self.bton(Chord::parse_length(token));
+                // start new chord
+                if !chord.is_empty() { line.push(chord.drain()); }
+                let length = self.wave.frame_count(Chord::parse_length(token));
                 chord.length = length;
                 chord.size = if token.ends_with(STACCATO) { length / 2 } else { length };
             },
@@ -104,9 +100,8 @@ impl Parser {
             _ => panic!("Invalid token as line of chords: {}", token),
         });
         line.push(chord);
-        self.wave.add_line(&line);
-        self.writer.write(self.wave.drain_to(line.offset()))?;
+        self.wave.fold_with_line(&line);
+        self.writer.write(self.wave.drain_until(line.offset())).unwrap();
         self.repeat.push(line);
-        Ok(())
     }
 }
