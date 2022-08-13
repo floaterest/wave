@@ -4,17 +4,20 @@ use std::iter::Peekable;
 use std::rc::Rc;
 use std::str::SplitAsciiWhitespace;
 
-use crate::buffers::capture::Cap;
-use crate::buffers::note::{Chord, Line, Note};
-use crate::buffers::waveform::Waveform;
 use crate::parsers::capture::{CAPTURE, CaptureParser, CLEAR, SHIFT};
 use crate::parsers::note::{NoteParser, STACCATO};
+use crate::stores::capture::Cap;
+use crate::stores::note::{Chord, Line, Note};
+use crate::stores::waveform::Waveform;
 use crate::writer::Writer;
 
 /// check if a line should be parsed as chords based on the first token
 fn should_be_chords(token: &str) -> bool {
+    // check if line starts with
     match token.as_bytes()[0] {
+        // capture tokens
         CAPTURE | SHIFT | CLEAR => true,
+        // note length
         b if b.is_ascii_digit() => true,
         _ => false,
     }
@@ -27,8 +30,8 @@ enum Token {
 }
 
 pub struct InputParser {
-    cap: CaptureParser,
     wr: Writer,
+    cap: CaptureParser,
     note: NoteParser,
     wave: Waveform,
 }
@@ -48,6 +51,7 @@ impl InputParser {
         lines.for_each(|line| {
             let trim = line.trim();
             match trim.parse() {
+                // line containing single usize
                 Ok(bpm) => self.wave.bpm = bpm,
                 Err(..) => {
                     let mut tokens = trim.split_ascii_whitespace().peekable();
@@ -59,15 +63,18 @@ impl InputParser {
                 }
             }
         });
+        // write the rest of generated waveform
         self.wr.write(self.wave.drain_all())?;
         Ok(self.wr.finish()?)
     }
     /// parse a line as chords (and captures)
     fn parse_chords(&mut self, mut tokens: Peekable<SplitAsciiWhitespace>) {
-        let mut cty = self.chord_type(tokens.peek().unwrap());
         let mut chord = Chord::new();
         let mut line = Line::new();
+        // current token type
+        let mut cty = self.chord_type(tokens.peek().unwrap());
         while let Some(token) = tokens.next() {
+            // next token type
             let nty = match tokens.peek() {
                 Some(&peek) => self.chord_type(peek),
                 None => Token::None,
@@ -80,12 +87,14 @@ impl InputParser {
         self.wr.write(self.wave.drain_until(line.offset())).unwrap();
         self.cap.update();
     }
+    /// do stuff based on current type
     fn match_current_type(&mut self, cty: &Token, token: &str, chord: &mut Chord) {
         match cty {
+            // update set of keys to capture
             Token::Capture(Cap::Capture(key)) => {
-                println!("Capture {}", key);
                 self.cap.will_capture(Rc::new(key.clone()))
             },
+            // update current chord's length & size
             Token::Note(Note::Length(length)) => {
                 let length = self.wave.frame_count(*length);
                 chord.length = length;
@@ -93,30 +102,35 @@ impl InputParser {
                     length * 2
                 } else { length };
             }
+            // extend current chord from captures and update to_shift/to_clear
             Token::Capture(Cap::Shift(key, clear)) => {
-                println!("Extend {}", key);
                 chord.extend(&self.cap.will_shift(Rc::new(key.clone()), *clear));
-            }
+            },
+            // push new frequency to current chord
             Token::Note(Note::Frequency(frequency)) => {
                 chord.push(*frequency)
             }
             _ => {},
         }
     }
+    /// do stuff based on what comes next
     fn match_types(&mut self, cty: &Token, nty: &Token, chord: &mut Chord, line: &mut Line) {
         match (cty, nty) {
-            (Token::Note(Note::Frequency(_)), Token::Note(Note::Frequency(_))) => {},
-            (Token::Capture(Cap::Shift(_, _)), Token::Capture(Cap::Shift(_, _)) | Token::Note(Note::Frequency(_))) => {},
-            // (P, C|L|S) | (S,C|L) | (_, N)
+            (Token::Note(Note::Frequency(_)), Token::Note(Note::Frequency(_))) => (),
+            (Token::Capture(Cap::Shift(_, _)), Token::Capture(Cap::Shift(_, _)) | Token::Note(Note::Frequency(_))) => (),
+            // (Frequency, Capture) | (Frequency, Length) | (Frequency, Shift)
+            // (Shift, Capture) | (Shift | Length)
+            // (_ , None)
             (Token::Note(Note::Frequency(_)) | Token::Capture(Cap::Shift(_, _)), _) | (_, Token::None) => {
                 let rc = Rc::new((*chord).clone());
                 self.cap.capture(&rc);
                 (*line).push(rc);
                 (*chord).clear();
             }
-            _ => {},
+            _ => (),
         }
     }
+    /// get token type given token is from chords
     fn chord_type(&mut self, token: &str) -> Token {
         if let Some(cap) = self.cap.parse(token) {
             Token::Capture(cap)

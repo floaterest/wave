@@ -4,10 +4,9 @@ use std::io::{BufRead, BufReader, Result};
 
 use parsers::input::InputParser;
 
-mod curves;
 mod writer;
 mod parsers;
-mod buffers;
+mod stores;
 
 /// read input.txt and/or write to output.wav by default
 fn io() -> (String, String) {

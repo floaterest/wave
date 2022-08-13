@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::buffers::note::Note;
+use crate::stores::note::Note;
 
 pub const TIE: u8 = b'+';
 pub const DOTTED: u8 = b'.';
@@ -33,6 +33,7 @@ impl NoteParser {
             tones: TONES.iter().map(|(t, i)| (t.to_string(), *i)).collect()
         }
     }
+    /// parse token as note length or frequency
     pub fn parse(&mut self, token: &str) -> Option<Note> {
         if token.as_bytes()[0].is_ascii_digit() {
             Some(Note::Length(self.length(token)))
@@ -52,7 +53,6 @@ impl NoteParser {
             Err(..) => match token.as_bytes().last() {
                 Some(&DOTTED) => self.scale(token, 1.5, DOTTED),
                 Some(&STACCATO) => self.scale(token, 0.5, STACCATO),
-                // sum up each value
                 _ if self.has_tie(token) => self.parse_tie(token),
                 _ => panic!("Invalid token as node length: {}", token),
             }
@@ -83,6 +83,7 @@ impl NoteParser {
     }
     /// parse token as tie
     fn parse_tie(&self, token: &str) -> f64 {
+        // sum up each value
         token.split(TIE as char).flat_map(|s| s.parse::<f64>()).map(|f| 1.0 / f).sum()
     }
     /// scale the duration of a token as length
@@ -93,7 +94,7 @@ impl NoteParser {
     fn key_number(&self, note: &str) -> usize {
         let (tone, octave) = note.split_at(note.len() - 1);
         match (self.tones.get(tone), octave.parse::<i32>()) {
-            (Some(i), Ok(oct)) => (i + oct * 12) as usize,
+            (Some(i), Ok(o)) => (i + o * 12) as usize,
             _ => panic!("Invalid token as note: {}", note),
         }
     }

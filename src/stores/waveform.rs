@@ -1,7 +1,14 @@
 use std::f64::consts::PI;
 
-use crate::buffers::note::Line;
-use crate::curves::{sine, sinusoid};
+use crate::stores::note::Line;
+
+/// make sine shape
+fn sinusoid(x: f64) -> f64 { ((x * PI).cos() + 1.0) / 2.0 }
+
+/// create waveform
+fn sine(i: f64, n: f64, period: f64, curve: &dyn Fn(f64) -> f64) -> f64 {
+    curve(i / n) * (period * i).sin()
+}
 
 pub struct Waveform {
     /// current bpm
@@ -58,6 +65,9 @@ impl Waveform {
         self.buffer.drain(..end).collect()
     }
     pub fn drain_all(&mut self) -> Vec<i16> {
+        if self.buffer.len() == 0 {
+            println!("Warning: nothing to drain");
+        }
         self.buffer.drain(..).collect()
     }
     //#endregion
