@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::str::SplitAsciiWhitespace;
 
 use crate::parsers::capture::{CAPTURE, CaptureParser, CLEAR, SHIFT};
-use crate::parsers::note::{NoteParser, STACCATO};
+use crate::parsers::note::NoteParser;
 use crate::stores::capture::Cap;
 use crate::stores::note::{Chord, Line, Note};
 use crate::stores::waveform::Waveform;
@@ -23,6 +23,7 @@ fn should_be_chords(token: &str) -> bool {
     }
 }
 
+#[derive(PartialEq)]
 enum Token {
     Note(Note),
     Capture(Cap),
@@ -72,14 +73,15 @@ impl InputParser {
         let mut chord = Chord::new();
         let mut line = Line::new();
         // current token type
-        let mut cty = self.chord_type(tokens.peek().unwrap());
-        while let Some(token) = tokens.next() {
+        let mut cty = self.chord_type(tokens.next().unwrap());
+
+        while cty != Token::None {
             // next token type
-            let nty = match tokens.peek() {
-                Some(&peek) => self.chord_type(peek),
+            let nty = match tokens.next() {
+                Some(token) => self.chord_type(token),
                 None => Token::None,
             };
-            self.match_current_type(&cty, token, &mut chord);
+            self.match_current_type(&cty, &mut chord);
             self.match_types(&cty, &nty, &mut chord, &mut line);
             cty = nty
         }
@@ -88,19 +90,17 @@ impl InputParser {
         self.cap.update();
     }
     /// do stuff based on current type
-    fn match_current_type(&mut self, cty: &Token, token: &str, chord: &mut Chord) {
+    fn match_current_type(&mut self, cty: &Token, chord: &mut Chord) {
         match cty {
             // update set of keys to capture
             Token::Capture(Cap::Capture(key)) => {
                 self.cap.will_capture(Rc::new(key.clone()))
             },
             // update current chord's length & size
-            Token::Note(Note::Length(length)) => {
+            Token::Note(Note::Length(length, staccato)) => {
                 let length = self.wave.frame_count(*length);
                 chord.length = length;
-                chord.size = if token.as_bytes().ends_with(&[STACCATO]) {
-                    length * 2
-                } else { length };
+                chord.size = if *staccato { length * 2 } else { length };
             }
             // extend current chord from captures and update to_shift/to_clear
             Token::Capture(Cap::Shift(key, clear)) => {
