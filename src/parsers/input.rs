@@ -1,158 +1,129 @@
-use std::cell::RefCell;
 use std::fs::File;
 use std::io::Result;
+use std::iter::Peekable;
 use std::rc::Rc;
+use std::str::SplitAsciiWhitespace;
 
-use crate::buffers::{CaptureMap, Chord, Line, Repeat, Waveform};
-use crate::parsers::NoteParser;
+use crate::buffers::capture::Cap;
+use crate::buffers::note::{Chord, Line, Note};
+use crate::buffers::waveform::Waveform;
+use crate::parsers::capture::{CAPTURE, CaptureParser};
+use crate::parsers::note::{NoteParser, STACCATO};
 use crate::writer::Writer;
 
-const STACCATO: char = '*';
-const REPEAT: char = '|';
-const CAPTURE: &str = "([{";
+/// check if a line should be parsed as chords based on the first token
+fn should_be_chords(token: &str) -> bool {
+    match token.as_bytes()[0] {
+        CAPTURE => true,
+        b if b.is_ascii_digit() => true,
+        _ => false,
+    }
+}
 
-/// is not a comment
-fn valid(ch: char) -> bool {
-    ch.is_ascii_digit() || CAPTURE.contains(ch)
+enum Token {
+    Note(Note),
+    Capture(Cap),
+    None,
 }
 
 pub struct InputParser {
+    cap: CaptureParser,
+    wr: Writer,
     note: NoteParser,
     wave: Waveform,
-    writer: Writer,
-    repeat: Repeat,
-    capture: CaptureMap,
 }
 
 impl InputParser {
-    pub fn new(output: File, fps: u32, amp: f64) -> Self {
+    pub fn new(output: File, amp: f64, fps: u32) -> Self {
         Self {
-            wave: Waveform::new(amp, fps),
-            writer: Writer::new(output),
-            repeat: Repeat::new(),
+            wr: Writer::new(output),
+            cap: CaptureParser::new(),
             note: NoteParser::new(),
-            capture: CaptureMap::new(),
+            wave: Waveform::new(amp, fps),
         }
     }
-    /// parse lines of input and write wave file
     pub fn write<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
-        self.writer.start(self.wave.fps)?;
-        // only parse non empty lines
-        lines.filter_map(|line| match line.trim() {
-            trim if trim.len() > 0 => Some(trim.to_string()),
-            _ => None,
-        }).for_each(|line| self.parse_line(line));
-        // empty buffer to wave
-        self.writer.write(self.wave.drain_all())?;
-        Ok(self.writer.finish()?)
-    }
-    /// parse a line of input
-    fn parse_line(&mut self, line: String) {
-        if line.contains(REPEAT) {
-            // parse as repeat
-            self.parse_repeat(line);
-        } else if valid(line.chars().next().unwrap()) {
-            // parse as chords or captures
-            match line.parse() {
+        self.wr.start(self.wave.fps)?;
+        // not using for loops here because CLion won't give me autocomplete
+        lines.for_each(|line| {
+            let trim = line.trim();
+            match trim.parse() {
                 Ok(bpm) => self.wave.bpm = bpm,
-                Err(..) => self.parse_chords(line),
-            }
-        }
-    }
-    /// parse line as repeat instructions
-    fn parse_repeat(&mut self, tokens: String) {
-        tokens.split_ascii_whitespace().for_each(|token: &str| match token {
-            _ if token.ends_with(REPEAT) => self.parse_end(token),
-            _ if token.starts_with(REPEAT) => self.parse_start(token),
-            _ => panic!("Invalid repeat token: {}", token)
-        })
-    }
-    /// parse token as repeat end
-    fn parse_end(&mut self, token: &str) {
-        match token.strip_suffix(REPEAT) {
-            // end all voltas
-            Some("") => self.repeat.clear(),
-            Some(":") => {
-                self.repeat.repeat(&mut self.wave, &mut self.writer);
-                // if doesn't have voltas starting from 1
-                if self.repeat.voltas.len() == 1 { self.repeat.clear(); }
-            }
-            _ => panic!("Invalid repeat end token: {}", token)
-        }
-    }
-    /// parse token as repeat start
-    fn parse_start(&mut self, token: &str) {
-        match token.strip_prefix(REPEAT) {
-            // start new repeat
-            Some(":") => self.repeat.start(&[0]),
-            // start voltas
-            Some(s) => self.repeat.start(&s.split('.').filter(
-                |ch| !ch.is_empty()
-            ).flat_map(|ch| ch.parse()).collect::<Vec<usize>>()),
-            _ => panic!("Invalid repeat start token: {}", token),
-        }
-    }
-    /// parse line as chords or captures
-    fn parse_chords(&mut self, tokens: String) {
-        let mut line = Line::new();
-        let mut chord = Rc::new(RefCell::new(Chord {
-            size: 0,
-            length: 0,
-            frequencies: Vec::new()
-        }));
-        // if starts with capture
-        if !tokens.starts_with(|ch: char| ch.is_ascii_digit()) {
-            line.push(Rc::clone(&chord));
-        }
-        tokens.split_ascii_whitespace().for_each(|token: &str| match token.chars().next() {
-            // note length
-            Some(ch) if ch.is_ascii_digit() => {
-                // make new chord and push to line
-                let length = self.wave.frame_count(Chord::parse_length(token));
-                let size = if token.ends_with(STACCATO) { length / 2 } else { length };
-                chord = Rc::new(RefCell::new(Chord {
-                    length,
-                    size,
-                    frequencies: Vec::new()
-                }));
-                line.push(Rc::clone(&chord));
-            }
-            // note pitch
-            Some(ch) if ch.is_ascii_alphabetic() => {
-                chord.borrow_mut().push(self.note.frequency(token));
-            }
-            // capture
-            Some(ch) if CAPTURE.contains(ch) => {
-                let key = Rc::new(CaptureMap::parse_key(token));
-                match ch {
-                    '(' => {
-                        self.capture.push_by_key(Rc::clone(&key), Rc::clone(&chord))
-                    },
-                    '[' | '{' => {
-                        let captured = self.capture.get_by_key(&key);
-                        let captured = if token.ends_with("^8") {
-                            Rc::new(RefCell::new(captured.borrow().scale(2.0)))
-                        } else if token.ends_with("_8") {
-                            Rc::new(RefCell::new(captured.borrow().scale(0.5)))
-                        } else { captured };
-                        chord.borrow_mut().extend(&captured.borrow());
-                        let to = if ch == '[' {
-                            &mut self.capture.to_shift
-                        } else {
-                            &mut self.capture.to_clear
-                        };
-                        to.insert(key);
+                Err(..) => {
+                    let mut tokens = trim.split_ascii_whitespace().peekable();
+                    match tokens.peek() {
+                        // Some(&token) if is_repeat(token) => println!("{} is repeat", token),
+                        Some(&token) if should_be_chords(token) => self.parse_chords(tokens),
+                        _ => { /* token is comment */ },
                     }
-                    _ => panic!("Invalid token as capture: {}", token),
                 }
             }
-            _ => panic!("Invalid token as line of chords: {}", token),
         });
-        // write to file
+        self.wr.write(self.wave.drain_all())?;
+        Ok(self.wr.finish()?)
+    }
+    /// parse a line as chords (and captures)
+    fn parse_chords(&mut self, mut tokens: Peekable<SplitAsciiWhitespace>) {
+        let mut cty = self.chord_type(tokens.peek().unwrap());
+        let mut chord = Chord::new();
+        let mut line = Line::new();
+        while let Some(token) = tokens.next() {
+            let nty = match tokens.peek() {
+                Some(&peek) => self.chord_type(peek),
+                None => Token::None,
+            };
+            self.match_current_type(&cty, token, &mut chord);
+            self.match_types(&cty, &nty, &mut chord, &mut line);
+            cty = nty
+        }
         self.wave.fold_with_line(&line);
-        self.writer.write(self.wave.drain_until(line.offset())).unwrap();
-        // update repeat and capture
-        self.repeat.push(line);
-        self.capture.update();
+        self.wr.write(self.wave.drain_until(line.offset())).unwrap();
+        self.cap.update();
+    }
+    fn match_current_type(&mut self, cty: &Token, token: &str, chord: &mut Chord) {
+        match cty {
+            Token::Capture(Cap::Capture(key)) => {
+                println!("Capture {}", key);
+                self.cap.will_capture(Rc::new(key.clone()))
+            },
+            Token::Note(Note::Length(length)) => {
+                let length = self.wave.frame_count(*length);
+                chord.length = length;
+                chord.size = if token.as_bytes().ends_with(&[STACCATO]) {
+                    length * 2
+                } else { length };
+            }
+            Token::Capture(Cap::Shift(key, clear)) => {
+                println!("Extend {}", key);
+                chord.extend(&self.cap.will_shift(Rc::new(key.clone()), *clear));
+            }
+            Token::Note(Note::Frequency(frequency)) => {
+                chord.push(*frequency)
+            }
+            _ => {},
+        }
+    }
+    fn match_types(&mut self, cty: &Token, nty: &Token, chord: &mut Chord, line: &mut Line) {
+        match (cty, nty) {
+            (Token::Note(Note::Frequency(_)), Token::Note(Note::Frequency(_))) => {},
+            (Token::Capture(Cap::Shift(_, _)), Token::Capture(Cap::Shift(_, _)) | Token::Note(Note::Frequency(_))) => {},
+            // (P, C|L|S) | (S,C|L) | (_, N)
+            (Token::Note(Note::Frequency(_)) | Token::Capture(Cap::Shift(_, _)), _) | (_, Token::None) => {
+                let rc = Rc::new((*chord).clone());
+                self.cap.capture(&rc);
+                (*line).push(rc);
+                (*chord).clear();
+            }
+            _ => {},
+        }
+    }
+    fn chord_type(&mut self, token: &str) -> Token {
+        if let Some(cap) = self.cap.parse(token) {
+            Token::Capture(cap)
+        } else if let Some(note) = self.note.parse(token) {
+            Token::Note(note)
+        } else {
+            panic!("Cannot recognise token's type: {}", token)
+        }
     }
 }
