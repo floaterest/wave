@@ -4,10 +4,9 @@ use std::iter::Peekable;
 use std::rc::Rc;
 use std::str::SplitAsciiWhitespace;
 
-use crate::parsers::capture::{CaptureParser, should_be_cap};
-use crate::parsers::note::NoteParser;
-use crate::stores::capture::Cap;
-use crate::stores::note::{Chord, Line, Note};
+use crate::parsers::capture::{Cap, CaptureParser, should_be_cap};
+use crate::parsers::note::{Note, NoteParser};
+use crate::stores::note::{Chord, Line};
 use crate::stores::waveform::Waveform;
 use crate::writer::Writer;
 
