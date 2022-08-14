@@ -63,8 +63,6 @@ impl InputParser {
                 }
             }
         });
-        // write the rest of generated waveform
-        self.wr.write(self.wave.drain_all())?;
         Ok(self.wr.finish()?)
     }
     /// parse a line as chords (and captures)
@@ -85,7 +83,7 @@ impl InputParser {
             cty = nty
         }
         self.wave.fold_with_line(&line);
-        self.wr.write(self.wave.drain_until(line.offset())).unwrap();
+        self.wr.write(self.wave.drain(line.offset())).unwrap();
         self.cap.update();
     }
     /// do stuff based on current type

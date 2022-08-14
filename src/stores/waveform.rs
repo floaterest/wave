@@ -60,15 +60,7 @@ impl Waveform {
         }
     }
     //#endregion write to buffer
-    //#region drain buffer
-    pub fn drain_until(&mut self, end: usize) -> Vec<i16> {
+    pub fn drain(&mut self, end: usize) -> Vec<i16> {
         self.buffer.drain(..end).collect()
     }
-    pub fn drain_all(&mut self) -> Vec<i16> {
-        if self.buffer.len() == 0 {
-            println!("Warning: nothing to drain");
-        }
-        self.buffer.drain(..).collect()
-    }
-    //#endregion
 }
