@@ -4,12 +4,39 @@ use std::rc::Rc;
 use crate::stores::capture::{Cap, Capture};
 use crate::stores::note::Chord;
 
-pub const CAPTURE: u8 = b'(';
-pub const SHIFT: u8 = b'[';
-pub const CLEAR: u8 = b'{';
+const CAPTURE: u8 = b'(';
+const SHIFT: u8 = b'[';
+const CLEAR: u8 = b'{';
 
+/// check if byte should be start of capture token
+pub fn should_be_cap(byte: u8) -> bool {
+    matches!(byte, CAPTURE | SHIFT | CLEAR)
+}
+
+/// panic key not found error
 fn panic(key: &str, action: &str) -> ! {
     panic!("Key '{}' not found while trying to {}", key, action)
+}
+
+/// parse token as capture or die
+fn parse_cap(token: &str, prefix: u8) -> Cap {
+    // get matching pair
+    let suffix = match prefix {
+        CAPTURE => b')',
+        SHIFT | CLEAR => prefix + 2,
+        _ => panic!("Invalid token as capture: {}", token),
+    };
+
+    let good = token.bytes().all(
+        |ch| ch == prefix || ch == suffix || ch.is_ascii_alphabetic()
+    );
+    assert!(good, "Invalid token as capture, {}", token);
+    let key = token.chars().filter(|ch| ch.is_ascii_alphabetic()).collect();
+    match prefix {
+        CAPTURE => Cap::Capture(key),
+        SHIFT | CLEAR => Cap::Shift(key, prefix == CLEAR),
+        _ => panic!("wot"),
+    }
 }
 
 pub struct CaptureParser {
@@ -72,30 +99,9 @@ impl CaptureParser {
     }
     /// parse token as capture
     pub fn parse(&self, token: &str) -> Option<Cap> {
-        let prefix = token.as_bytes()[0];
-        match prefix {
-            CAPTURE | SHIFT | CLEAR => Some(self.parse_cap(token, prefix)),
+        match token.as_bytes()[0] {
+            b if should_be_cap(b) => Some(parse_cap(token, b)),
             _ => None,
-        }
-    }
-    /// parse token as capture or die
-    fn parse_cap(&self, token: &str, prefix: u8) -> Cap {
-        // get matching pair
-        let suffix = match prefix {
-            CAPTURE => b')',
-            SHIFT | CLEAR => prefix + 2,
-            _ => panic!("Invalid token as capture: {}", token),
-        };
-
-        let good = token.bytes().all(
-            |ch| ch == prefix || ch == suffix || ch.is_ascii_alphabetic()
-        );
-        assert!(good, "Invalid token as capture, {}", token);
-        let key = token.chars().filter(|ch| ch.is_ascii_alphabetic()).collect();
-        match prefix {
-            CAPTURE => Cap::Capture(key),
-            SHIFT | CLEAR => Cap::Shift(key, prefix == CLEAR),
-            _ => panic!("wot"),
         }
     }
 }

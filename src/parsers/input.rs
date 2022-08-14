@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use std::rc::Rc;
 use std::str::SplitAsciiWhitespace;
 
-use crate::parsers::capture::{CAPTURE, CaptureParser, CLEAR, SHIFT};
+use crate::parsers::capture::{CaptureParser, should_be_cap};
 use crate::parsers::note::NoteParser;
 use crate::stores::capture::Cap;
 use crate::stores::note::{Chord, Line, Note};
@@ -16,7 +16,7 @@ fn should_be_chords(token: &str) -> bool {
     // check if line starts with
     match token.as_bytes()[0] {
         // capture tokens
-        CAPTURE | SHIFT | CLEAR => true,
+        b if should_be_cap(b) => true,
         // note length
         b if b.is_ascii_digit() => true,
         _ => false,

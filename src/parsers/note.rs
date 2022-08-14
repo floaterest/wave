@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use crate::stores::note::Note;
 
-pub const TIE: u8 = b'+';
-pub const DOTTED: u8 = b'.';
-pub const STACCATO: u8 = b'*';
-pub const REST: u8 = b'\\';
+const TIE: u8 = b'+';
+const DOTTED: u8 = b'.';
+const STACCATO: u8 = b'*';
+const REST: u8 = b'\\';
 const TONES: [(&str, i32); 17] = [
     ("c", -8),
     ("c#", -7), ("db", -7),
