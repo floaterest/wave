@@ -100,8 +100,13 @@ impl InputParser {
                 chord.size = if *staccato { length * 2 } else { length };
             }
             // extend current chord from captures and update to_shift/to_clear
-            Token::Capture(Cap::Shift(key, clear)) => {
-                chord.extend(&self.cap.will_shift(Rc::new(key.clone()), *clear));
+            Token::Capture(Cap::Shift(key, clear, scale)) => {
+                let captured = self.cap.will_shift(Rc::new(key.clone()), *clear);
+                chord.extend(if let Some(r) = scale {
+                    Rc::new(captured.scale(*r))
+                } else {
+                    Rc::clone(&captured)
+                });
             },
             // push new frequency to current chord
             Token::Note(Note::Frequency(frequency)) => {
@@ -114,11 +119,11 @@ impl InputParser {
     fn match_types(&mut self, cty: &Token, nty: &Token, chord: &mut Chord, line: &mut Line) {
         match (cty, nty) {
             (Token::Note(Note::Frequency(_)), Token::Note(Note::Frequency(_))) => (),
-            (Token::Capture(Cap::Shift(_, _)), Token::Capture(Cap::Shift(_, _)) | Token::Note(Note::Frequency(_))) => (),
+            (Token::Capture(Cap::Shift(..)), Token::Capture(Cap::Shift(..)) | Token::Note(Note::Frequency(_))) => (),
             // (Frequency, Capture) | (Frequency, Length) | (Frequency, Shift)
             // (Shift, Capture) | (Shift | Length)
             // (_ , None)
-            (Token::Note(Note::Frequency(_)) | Token::Capture(Cap::Shift(_, _)), _) | (_, Token::None) => {
+            (Token::Note(Note::Frequency(_)) | Token::Capture(Cap::Shift(..)), _) | (_, Token::None) => {
                 let rc = Rc::new((*chord).clone());
                 self.cap.capture(&rc);
                 (*line).push(rc);

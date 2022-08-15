@@ -7,18 +7,29 @@ use crate::stores::note::Chord;
 const CAPTURE: u8 = b'(';
 const SHIFT: u8 = b'[';
 const CLEAR: u8 = b'{';
+const RAISE: u8 = b'^';
+const LOWER: u8 = b'_';
 
 #[derive(PartialEq)]
 pub enum Cap {
     /// (key)
     Capture(String),
-    /// (key, clear)
-    Shift(String, bool),
+    /// (key, clear, scale)
+    Shift(String, bool, Option<f64>),
 }
 
 /// check if byte should be start of capture token
 pub fn should_be_cap(byte: u8) -> bool {
     matches!(byte, CAPTURE | SHIFT | CLEAR)
+}
+
+/// check if capture is cap
+fn is_cap(bytes: &[u8], prefix: u8, suffix: u8) -> bool {
+    bytes.iter().all(
+        |&b| matches!(b, LOWER | RAISE) ||
+            b == prefix || b == suffix ||
+            b.is_ascii_alphanumeric()
+    )
 }
 
 /// panic key not found error
@@ -34,16 +45,23 @@ fn parse_cap(token: &str, prefix: u8) -> Cap {
         SHIFT | CLEAR => prefix + 2,
         _ => panic!("Invalid token as capture: {}", token),
     };
-
-    let good = token.bytes().all(
-        |ch| ch == prefix || ch == suffix || ch.is_ascii_alphabetic()
-    );
-    assert!(good, "Invalid token as capture, {}", token);
+    let bytes = token.as_bytes();
+    assert!(is_cap(bytes, prefix, suffix), "Invalid token as capture, {}", token);
     let key = token.chars().filter(|ch| ch.is_ascii_alphabetic()).collect();
     match prefix {
         CAPTURE => Cap::Capture(key),
-        SHIFT | CLEAR => Cap::Shift(key, prefix == CLEAR),
+        SHIFT | CLEAR => Cap::Shift(key, prefix == CLEAR, parse_scale(bytes)),
         _ => panic!("wot"),
+    }
+}
+
+fn parse_scale(bytes: &[u8]) -> Option<f64> {
+    if bytes.ends_with(&[LOWER, b'8']) {
+        Some(0.5)
+    } else if bytes.ends_with(&[RAISE, b'8']) {
+        Some(2.0)
+    } else {
+        None
     }
 }
 

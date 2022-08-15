@@ -22,22 +22,22 @@ impl Chord {
         }
     }
     /// scale all frequencies, return new Self
-    // pub fn scale(&self, scale: f64) -> Self {
-    //     Self {
-    //         length: self.length,
-    //         size: self.size,
-    //         frequencies: self.frequencies.iter().map(|&f| f * scale).collect()
-    //     }
-    // }
+    pub fn scale(&self, scale: f64) -> Self {
+        Self {
+            length: self.length,
+            size: self.size,
+            frequencies: self.frequencies.iter().map(|&f| f * scale).collect()
+        }
+    }
     /// push a new frequency to chord
     pub fn push(&mut self, frequency: f64) {
         self.frequencies.push(frequency);
     }
     /// extend a chord to self
-    pub fn extend(&mut self, rhs: &Chord) {
+    pub fn extend(&mut self, rhs: Rc<Chord>) {
         if self.frequencies.is_empty() {
             // clone rhs to self
-            *self = rhs.clone()
+            *self = (*rhs).clone()
         } else {
             assert_eq!(self.length, rhs.length, "attempt to extend a chord without equal length");
             assert_eq!(self.size, rhs.size, "attempt to extend a chord without equal size");
