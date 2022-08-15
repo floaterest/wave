@@ -1,7 +1,14 @@
 use std::f64::consts::PI;
 
-use crate::buffers::Line;
-use crate::curves::{sine, sinusoid};
+use crate::stores::note::Line;
+
+/// make sine shape
+fn sinusoid(x: f64) -> f64 { ((x * PI).cos() + 1.0) / 2.0 }
+
+/// create waveform
+fn sine(i: f64, n: f64, period: f64, curve: &dyn Fn(f64) -> f64) -> f64 {
+    curve(i / n) * (period * i).sin()
+}
 
 pub struct Waveform {
     /// current bpm
@@ -20,6 +27,7 @@ impl Waveform {
     }
     /// return number of frames given the length as beat
     pub fn frame_count(&self, beat: f64) -> usize {
+        assert_ne!(self.bpm, 0, "BPM is at 0.0 while trying to get frame count");
         //      duration in seconds     ) number of frames )
         ((beat * 240.0 / self.bpm as f64) * self.fps as f64) as usize
     }
@@ -29,7 +37,7 @@ impl Waveform {
         // no need to add rests
         if freq == 0.0 { return; }
         assert_ne!(len, 0, "Frame count is 0 at {} Hz", freq);
-        assert_ne!(self.bpm, 0, "BPM is 0.0 at {} Hz", freq);
+        assert_ne!(self.bpm, 0, "BPM is 0.0 at {}", freq);
         let period = freq * PI * 2.0 / self.fps as f64;
         let a = self.amp;
         // add new wave to buffer
@@ -45,19 +53,14 @@ impl Waveform {
             self.buffer.resize(size, 0);
         }
         for chord in line.chords() {
-            let length = chord.borrow().length;
-            for freq in chord.borrow().frequencies.iter() {
+            let length = chord.length;
+            for freq in chord.frequencies.iter() {
                 self.fold_with_note(length, *freq);
             }
         }
     }
     //#endregion write to buffer
-    //#region drain buffer
-    pub fn drain_until(&mut self, end: usize) -> Vec<i16> {
+    pub fn drain(&mut self, end: usize) -> Vec<i16> {
         self.buffer.drain(..end).collect()
     }
-    pub fn drain_all(&mut self) -> Vec<i16> {
-        self.buffer.drain(..).collect()
-    }
-    //#endregion
 }

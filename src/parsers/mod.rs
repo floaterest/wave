@@ -1,7 +1,4 @@
-//! parse input
-pub use note::NoteParser;
-pub use input::InputParser;
-
-mod note;
-mod input;
-
+//! structs that parse input
+pub mod note;
+pub mod input;
+pub mod capture;
