@@ -85,15 +85,15 @@ impl CaptureParser {
         self.to_pop.clear();
         self.to_clear.clear();
     }
-    /// parse token as capture
-    pub fn parse(&mut self, token: &str) -> Option<Cap> {
+    /// try parse token as capture
+    pub fn try_parse(&mut self, token: &str) -> Result<Option<Cap>, String> {
         match token.as_bytes()[0] {
-            b if should_be_cap(b) => Some(self.process(token, b)),
-            _ => None,
+            b if should_be_cap(b) => Ok(Some(self.process(token, b)?)),
+            _ => Ok(None),
         }
     }
     /// process the token as capture and return what operation was done
-    fn process(&mut self, token: &str, prefix: u8) -> Cap {
+    fn process(&mut self, token: &str, prefix: u8) -> Result<Cap, String> {
         let key = token.chars().filter(|ch| ch.is_alphabetic()).collect();
         // use the key from captures if possible (avoid dup memory)
         let key = match self.captures.get_key_value(&key) {
@@ -101,15 +101,16 @@ impl CaptureParser {
             None => Rc::new(key),
         };
         match prefix {
-            CAP => Cap::Capture(key),
-            POP | FRONT | SHIFT | CLEAR => {
-                self.process_front(key, prefix, parse_scale(token.as_bytes()))
-            }
-            _ => panic!("unknown capture instruction: {}", token),
+            CAP => Ok(Cap::Capture(key)),
+            POP | FRONT | SHIFT | CLEAR => Ok(self.process_front(
+                key, prefix,
+                parse_scale(token.as_bytes()),
+            )?),
+            _ => Err(format!("unknown capture instruction: {}", token)),
         }
     }
     /// process the token as pop/front/shift/clear
-    fn process_front(&mut self, key: Rc<String>, prefix: u8, scale: Option<f64>) -> Cap {
+    fn process_front(&mut self, key: Rc<String>, prefix: u8, scale: Option<f64>) -> Result<Cap, String> {
         // update schedule
         let to = match prefix {
             CAP => Some(&mut self.to_cap),
@@ -122,12 +123,12 @@ impl CaptureParser {
             to.insert(Rc::clone(&key));
         }
         // get front chord
-        let front = Rc::clone(self.captures.get(&key).unwrap_or_else(
-            || panic!("key {} not found while trying to access front", &key)
-        ).front().unwrap_or_else(
-            || panic!("captures with key {} is empty while trying to access front", &key)
-        ));
+        let front = Rc::clone(self.captures.get(&key).ok_or_else(
+            || format!("key {} not found while trying to access front", &key)
+        )?.front().ok_or_else(
+            || format!("captures with key {} is empty while trying to access front", &key)
+        )?);
         // if scale, make new rc
-        Cap::Front(if let Some(r) = scale { Rc::new(front.scale(r)) } else { front })
+        Ok(Cap::Front(if let Some(r) = scale { Rc::new(front.scale(r)) } else { front }))
     }
 }
