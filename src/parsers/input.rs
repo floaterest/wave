@@ -15,7 +15,6 @@ use crate::writer::Writer;
 enum Token {
     Note(Note),
     Capture(Cap),
-    Repeat(Rep),
     None,
 }
 
@@ -87,48 +86,34 @@ impl InputParser {
 impl InputParser {
     /// parse a line of input as repeat
     fn parse_repeat(&mut self, mut tokens: Peekable<SplitAsciiWhitespace>) -> Result<(), String> {
-        let mut cty = self.repeat_type(tokens.next().unwrap())?;
-        while cty != Token::None {
+        // current token type
+        let mut cty = Some(self.rep.parse(tokens.next().unwrap())?);
+        while let Some(ty) = &cty {
             // next token type
-            let nty = match tokens.next() {
-                Some(token) => self.repeat_type(token)?,
-                None => Token::None,
-            };
-            self.match_repeat_type(&cty);
-            self.match_repeat_types(&cty, &nty)?;
+            let nty = tokens.next().and_then(|token| Some(self.rep.parse(token).ok()?));
+
+            match &ty {
+                Rep::RepeatStart => self.rep.start(&[0]),
+                Rep::VoltaStart(vs) => self.rep.start(&vs),
+                Rep::RepeatEnd | Rep::VoltaEnd => self.rep.start(&[!0]),
+            }
+            match (&ty, &nty) {
+                (Rep::RepeatStart | Rep::VoltaStart(_), _) => (),
+                (_, Some(Rep::RepeatStart) | None) => {
+                    // move self.rep to rep
+                    let rep = std::mem::take(&mut self.rep);
+                    // now there's no borrowing 2 values from self at tho same time
+                    rep.repeat(|line| self.write_line(line))?;
+                    // move back
+                    self.rep = rep;
+                    // reset repeat
+                    self.rep.clear();
+                }
+                _ => ()
+            }
             cty = nty;
         }
         Ok(())
-    }
-    /// do stuff based on current repeat type
-    fn match_repeat_type(&mut self, cty: &Token) {
-        match cty {
-            Token::Repeat(Rep::RepeatStart) => self.rep.start(&[0]),
-            Token::Repeat(Rep::VoltaStart(vs)) => self.rep.start(&vs),
-            Token::Repeat(Rep::RepeatEnd | Rep::VoltaEnd) => self.rep.start(&[!0]),
-            _ => (),
-        }
-    }
-    /// do stuff based on what repeat token comes next
-    fn match_repeat_types(&mut self, cty: &Token, nty: &Token) -> Result<(), String> {
-        Ok(match (cty, nty) {
-            (Token::Repeat(Rep::RepeatStart | Rep::VoltaStart(_)), _) => (),
-            (_, Token::Repeat(Rep::RepeatStart) | Token::None) => {
-                // move self.rep to rep
-                let rep = std::mem::take(&mut self.rep);
-                // now there's no borrowing 2 values from self at tho same time
-                rep.repeat(|line| self.write_line(line))?;
-                // move back
-                self.rep = rep;
-                // reset repeat
-                self.rep.clear();
-            }
-            _ => ()
-        })
-    }
-    /// get specific type of repeat token
-    fn repeat_type(&self, token: &str) -> Result<Token, String> {
-        Ok(Token::Repeat(self.rep.parse(token)?))
     }
 }
 
