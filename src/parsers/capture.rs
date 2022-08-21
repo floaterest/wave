@@ -14,7 +14,7 @@ const LOWER: [u8; 2] = [b'_', b'8'];
 #[derive(PartialEq)]
 pub enum Cap {
     /// (key)
-    Capture(Rc<String>),
+    Cap(Rc<String>),
     /// (chord from capture)
     Front(Rc<Chord>),
 }
@@ -101,7 +101,7 @@ impl CaptureParser {
             None => Rc::new(key),
         };
         match prefix {
-            CAP => Ok(Cap::Capture(key)),
+            CAP => Ok(Cap::Cap(key)),
             POP | FRONT | SHIFT | CLEAR => Ok(self.process_front(
                 key, prefix,
                 parse_scale(token.as_bytes()),

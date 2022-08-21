@@ -22,9 +22,9 @@ const TONES: [(&str, i32); 17] = [
 #[derive(PartialEq)]
 pub enum Note {
     /// (number of beats, staccato)
-    Length(f64, bool),
+    Len(f64, bool),
     /// Hz
-    Frequency(f64),
+    Freq(f64),
 }
 
 pub struct NoteParser {
@@ -43,11 +43,11 @@ impl NoteParser {
     pub fn try_parse(&mut self, token: &str) -> Result<Option<Note>, String> {
         Ok(if token.as_bytes()[0].is_ascii_digit() {
             let (beat, staccato) = self.length(token)?;
-            Some(Note::Length(beat, staccato))
+            Some(Note::Len(beat, staccato))
         } else if self.is_freq(token) {
-            Some(Note::Frequency(self.frequency(token)?))
+            Some(Note::Freq(self.frequency(token)?))
         } else if self.is_rest(token) {
-            Some(Note::Frequency(0.0))
+            Some(Note::Freq(0.0))
         } else {
             None
         })

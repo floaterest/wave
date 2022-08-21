@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::Error;
 use std::iter::Peekable;
@@ -11,11 +12,24 @@ use crate::stores::note::{Chord, Line};
 use crate::stores::waveform::Waveform;
 use crate::writer::Writer;
 
+/// Length, Frequency, Capture, Front, None
 #[derive(PartialEq)]
 enum Token {
     Note(Note),
-    Capture(Cap),
+    Cap(Cap),
     None,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match &self {
+            Self::Note(Note::Freq(_)) => "note frequency",
+            Self::Note(Note::Len(_, _)) => "note length",
+            Self::Cap(Cap::Cap(_)) => "cap capture",
+            Self::Cap(Cap::Front(_)) => "cap front",
+            Self::None => "EOL",
+        })
+    }
 }
 
 /// check if a line should be parsed as chords based on the first token
@@ -134,40 +148,43 @@ impl InputParser {
             };
             match &cty {
                 // update set of keys to capture
-                Token::Capture(Cap::Capture(key)) => self.cap.will_capture(Rc::clone(&key)),
+                Token::Cap(Cap::Cap(key)) => self.cap.will_capture(Rc::clone(&key)),
                 // update current chord's length & size
-                Token::Note(Note::Length(length, staccato)) => {
+                Token::Note(Note::Len(length, staccato)) => {
                     let length = self.wave.frame_count(*length);
                     chord.length = length;
                     chord.size = if *staccato { length * 2 } else { length };
                 }
                 // extend current chord from captures and update to_shift/to_clear
-                Token::Capture(Cap::Front(captured)) => if chord.is_new() && rc.is_new() {
+                Token::Cap(Cap::Front(captured)) => if chord.is_new() && rc.is_new() {
                     rc = Rc::clone(captured)
                 } else {
                     chord.extend(captured)
                 },
                 // push new frequency to current chord
-                Token::Note(Note::Frequency(frequency)) => chord.push(*frequency),
+                Token::Note(Note::Freq(frequency)) => chord.push(*frequency),
                 _ => {}
             }
+            // help how do I refactor this monstrosity
             match (&cty, &nty) {
-                // ignore (Front, Front)
-                (Token::Capture(Cap::Front(_)), Token::Capture(Cap::Front(_))) => (),
-                // ignore (Freq, Freq) (Freq, Front) (Len, Freq) (Len, Front)
-                (Token::Note(_), Token::Note(Note::Frequency(_)) | Token::Capture(Cap::Front(_))) => (),
-                // ignore (Capture, Length) (Capture, Capture) (Capture, Front)
-                (Token::Capture(Cap::Capture(_)), Token::Note(Note::Length(_, _)) | Token::Capture(_)) => (),
-                // (Freq, Cap | Len | Front | None)
-                // (Front, Cap | Len | None)
-                // todo panic for invalid token sequences LL LC LN CF CN
-                _ => {
+                // ignore (Len, Front | Freq)
+                (Token::Note(Note::Len(_, _)), Token::Cap(Cap::Front(_)) | Token::Note(Note::Freq(_))) => (),
+                // error (Len, Len | Cap | None) | (Cap, Freq | None)
+                (Token::Note(Note::Len(_, _)), _) | (Token::Cap(Cap::Cap(_)), Token::Note(Note::Freq(_)) | Token::None) => {
+                    return Err(format!("invalid token sequence: ({}, {})", cty, nty));
+                }
+                // ignore (Freq, Freq) | (Front, Freq | Front)
+                (Token::Note(Note::Freq(_)), Token::Note(Note::Freq(_))) => (),
+                (Token::Cap(Cap::Front(_)), Token::Note(Note::Freq(_)) | Token::Cap(Cap::Front(_))) => (),
+                // push to line and capture (Freq, Len | Cap | Front | None) | (Front, Len | Cap | None)
+                (Token::Note(Note::Freq(_)) | Token::Cap(Cap::Front(_)), _) => {
                     let new = if chord.is_new() { rc } else { Rc::new(chord + (*rc).clone()) };
                     self.cap.capture(Rc::clone(&new));
                     line.push(new);
                     chord = Chord::new();
                     rc = Rc::new(Chord::new());
                 }
+                _ => (),
             }
             cty = nty
         }
@@ -181,7 +198,7 @@ impl InputParser {
     /// get specific type of chord token
     fn chord_type(&mut self, token: &str) -> Result<Token, String> {
         if let Some(cap) = self.cap.try_parse(token)? {
-            Ok(Token::Capture(cap))
+            Ok(Token::Cap(cap))
         } else if let Some(note) = self.note.try_parse(token)? {
             Ok(Token::Note(note))
         } else {
