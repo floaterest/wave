@@ -152,12 +152,15 @@ impl InputParser {
                 _ => {}
             }
             match (&cty, &nty) {
-                (Token::Capture(Cap::Capture(_)), Token::Note(Note::Length(_, _))) => {}
-                (Token::Note(_) | Token::Capture(Cap::Front(_)), Token::Note(Note::Frequency(_))) => {}
-                (Token::Note(Note::Length(_, _)) | Token::Capture(_), Token::Capture(Cap::Front(_))) => {}
+                // ignore (Front, Front)
+                (Token::Capture(Cap::Front(_)), Token::Capture(Cap::Front(_))) => (),
+                // ignore (Freq, Freq) (Freq, Front) (Len, Freq) (Len, Front)
+                (Token::Note(_), Token::Note(Note::Frequency(_)) | Token::Capture(Cap::Front(_))) => (),
+                // ignore (Capture, Length) (Capture, Capture) (Capture, Front)
+                (Token::Capture(Cap::Capture(_)), Token::Note(Note::Length(_, _)) | Token::Capture(_)) => (),
                 // (Freq, Cap | Len | Front | None)
                 // (Front, Cap | Len | None)
-                // todo panic for invalid token sequences LL LC LN CF CN (CC?)
+                // todo panic for invalid token sequences LL LC LN CF CN
                 _ => {
                     let new = if chord.is_new() { rc } else { Rc::new(chord + (*rc).clone()) };
                     self.cap.capture(Rc::clone(&new));
