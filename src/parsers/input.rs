@@ -6,9 +6,18 @@ use std::str::SplitAsciiWhitespace;
 
 use crate::parsers::capture::{Cap, CaptureParser, should_be_cap};
 use crate::parsers::note::{Note, NoteParser};
+use crate::parsers::repeat::{Rep, RepeatParser, should_be_rep};
 use crate::stores::note::{Chord, Line};
 use crate::stores::waveform::Waveform;
 use crate::writer::Writer;
+
+#[derive(PartialEq)]
+enum Token {
+    Note(Note),
+    Capture(Cap),
+    Repeat(Rep),
+    None,
+}
 
 /// check if a line should be parsed as chords based on the first token
 fn should_be_chords(token: &str) -> bool {
@@ -22,16 +31,10 @@ fn should_be_chords(token: &str) -> bool {
     }
 }
 
-#[derive(PartialEq)]
-enum Token {
-    Note(Note),
-    Capture(Cap),
-    None,
-}
-
 pub struct InputParser {
     wr: Writer,
     cap: CaptureParser,
+    rep: RepeatParser,
     note: NoteParser,
     wave: Waveform,
 }
@@ -41,31 +44,91 @@ impl InputParser {
         Self {
             wr: Writer::new(output),
             cap: CaptureParser::new(),
+            rep: RepeatParser::new(),
             note: NoteParser::new(),
             wave: Waveform::new(amp, fps),
         }
     }
+    /// parse all lines as input and write output to file
     pub fn write<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
         self.wr.start(self.wave.fps)?;
         // not using for loops here because CLion won't give me autocomplete
-        lines.for_each(|line| {
-            let trim = line.trim();
-            match trim.parse() {
-                // line containing single usize
-                Ok(bpm) => self.wave.bpm = bpm,
-                Err(..) => {
-                    let mut tokens = trim.split_ascii_whitespace().peekable();
-                    match tokens.peek() {
-                        // Some(&token) if is_repeat(token) => println!("{} is repeat", token),
-                        Some(&token) if should_be_chords(token) => self.parse_chords(tokens),
-                        _ => { /* token is comment */ },
-                    }
-                }
-            }
-        });
+        lines.for_each(|line| self.parse_line(line.trim()));
         Ok(self.wr.finish()?)
     }
-    /// parse a line as chords (and captures)
+    /// parse a line from input
+    fn parse_line(&mut self, line: &str) {
+        match line.parse() {
+            // line containing single usize
+            Ok(bpm) => self.wave.bpm = bpm,
+            Err(..) => {
+                let mut tokens = line.split_ascii_whitespace().peekable();
+                match tokens.peek() {
+                    Some(&token) if should_be_rep(token) => self.parse_repeat(tokens),
+                    Some(&token) if should_be_chords(token) => self.parse_chords(tokens),
+                    _ => { /* token is comment */ },
+                }
+            }
+        }
+    }
+    /// write a line to file
+    fn write_line(&mut self, line: &Line) {
+        self.wave.fold_with_line(line);
+        self.wr.write(self.wave.drain(line.offset())).unwrap();
+    }
+}
+
+/// parse repeat
+impl InputParser {
+    /// parse a line of input as repeat
+    fn parse_repeat(&mut self, mut tokens: Peekable<SplitAsciiWhitespace>) {
+        let mut cty = self.repeat_type(tokens.next().unwrap());
+        while cty != Token::None {
+            // next token type
+            let nty = match tokens.next() {
+                Some(token) => self.repeat_type(token),
+                None => Token::None,
+            };
+            self.match_repeat_type(&cty);
+            self.match_repeat_types(&cty, &nty);
+            cty = nty;
+        }
+    }
+    /// do stuff based on current repeat type
+    fn match_repeat_type(&mut self, cty: &Token) {
+        match cty {
+            Token::Repeat(Rep::RepeatStart) => self.rep.start(&[0]),
+            Token::Repeat(Rep::VoltaStart(vs)) => self.rep.start(&vs),
+            Token::Repeat(Rep::RepeatEnd | Rep::VoltaEnd) => self.rep.start(&[!0]),
+            _ => (),
+        }
+    }
+    /// do stuff based on what repeat token comes next
+    fn match_repeat_types(&mut self, cty: &Token, nty: &Token) {
+        match (cty, nty) {
+            (Token::Repeat(Rep::RepeatStart | Rep::VoltaStart(_)), _) => (),
+            (_, Token::Repeat(Rep::RepeatStart) | Token::None) => {
+                // move self.rep to rep
+                let rep = std::mem::take(&mut self.rep);
+                // now there's no borrowing 2 values from self at tho same time
+                rep.repeat(|line| self.write_line(line));
+                // move back
+                self.rep = rep;
+                // reset repeat
+                self.rep.clear();
+            },
+            _ => {},
+        }
+    }
+    /// get specific type of repeat token
+    fn repeat_type(&self, token: &str) -> Token {
+        Token::Repeat(self.rep.parse(token))
+    }
+}
+
+/// parse chords
+impl InputParser {
+    /// parse a line of input as chords (and captures)
     fn parse_chords(&mut self, mut tokens: Peekable<SplitAsciiWhitespace>) {
         let mut chord = Chord::new();
         let mut line = Line::new();
@@ -78,16 +141,19 @@ impl InputParser {
                 Some(token) => self.chord_type(token),
                 None => Token::None,
             };
-            self.match_current_type(&cty, &mut chord);
-            self.match_types(&cty, &nty, &mut chord, &mut line);
+            self.match_chord_type(&cty, &mut chord);
+            self.match_chord_types(&cty, &nty, &mut chord, &mut line);
             cty = nty
         }
-        self.wave.fold_with_line(&line);
-        self.wr.write(self.wave.drain(line.offset())).unwrap();
+        if self.rep.on_rec() {
+            self.rep.push(line);
+        } else {
+            self.write_line(&line);
+        }
         self.cap.update();
     }
-    /// do stuff based on current type
-    fn match_current_type(&mut self, cty: &Token, chord: &mut Chord) {
+    /// do stuff based on current chord token
+    fn match_chord_type(&mut self, cty: &Token, chord: &mut Chord) {
         match cty {
             // update set of keys to capture
             Token::Capture(Cap::Capture(key)) => {
@@ -109,14 +175,12 @@ impl InputParser {
                 });
             },
             // push new frequency to current chord
-            Token::Note(Note::Frequency(frequency)) => {
-                chord.push(*frequency)
-            }
+            Token::Note(Note::Frequency(frequency)) => chord.push(*frequency),
             _ => {},
         }
     }
-    /// do stuff based on what comes next
-    fn match_types(&mut self, cty: &Token, nty: &Token, chord: &mut Chord, line: &mut Line) {
+    /// do stuff based on what chord token comes next
+    fn match_chord_types(&mut self, cty: &Token, nty: &Token, chord: &mut Chord, line: &mut Line) {
         match (cty, nty) {
             (Token::Note(Note::Frequency(_)), Token::Note(Note::Frequency(_))) => (),
             (Token::Capture(Cap::Shift(..)), Token::Capture(Cap::Shift(..)) | Token::Note(Note::Frequency(_))) => (),
@@ -132,7 +196,7 @@ impl InputParser {
             _ => (),
         }
     }
-    /// get token type given token is from chords
+    /// get specific type of chord token
     fn chord_type(&mut self, token: &str) -> Token {
         if let Some(cap) = self.cap.parse(token) {
             Token::Capture(cap)
