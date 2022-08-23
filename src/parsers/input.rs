@@ -156,7 +156,8 @@ impl InputParser {
                     chord.size = if *staccato { length * 2 } else { length };
                 }
                 // extend current chord from captures and update to_shift/to_clear
-                Token::Cap(Cap::Front(captured)) => if chord.is_new() && rc.is_new() {
+                // Token::Cap(Cap::Front(captured)) => if chord.is_new() && rc.is_new() {
+                Token::Cap(Cap::Front(captured)) => if chord.can_be_replaced_by(captured) && rc.is_empty() {
                     rc = Rc::clone(captured)
                 } else {
                     chord.extend(captured)
@@ -178,7 +179,11 @@ impl InputParser {
                 (Token::Cap(Cap::Front(_)), Token::Note(Note::Freq(_)) | Token::Cap(Cap::Front(_))) => (),
                 // push to line and capture (Freq, Len | Cap | Front | None) | (Front, Len | Cap | None)
                 (Token::Note(Note::Freq(_)) | Token::Cap(Cap::Front(_)), _) => {
-                    let new = if chord.is_new() { rc } else { Rc::new(chord + (*rc).clone()) };
+                    let new = if chord.is_empty() {
+                        rc
+                    } else {
+                        Rc::new(chord + (*rc).clone())
+                    };
                     self.cap.capture(Rc::clone(&new));
                     line.push(new);
                     chord = Chord::new();

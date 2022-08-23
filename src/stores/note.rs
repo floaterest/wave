@@ -30,9 +30,13 @@ impl Chord {
             frequencies: self.frequencies.iter().map(|&f| f * scale).collect(),
         }
     }
-    /// returns `true` if `self` is newly initialised
-    pub fn is_new(&self) -> bool {
-        self.size == 0 && self.length == 0 && self.frequencies.is_empty()
+    /// returns `true` if `self` can be replaced by chord
+    pub fn can_be_replaced_by(&self, chord: &Chord) -> bool {
+        self.size == chord.size && self.length == chord.length && self.is_empty()
+    }
+    /// returns `true` if `self` has no frequencies
+    pub fn is_empty(&self) -> bool {
+        self.frequencies.is_empty()
     }
     /// push a new frequency to chord
     pub fn push(&mut self, frequency: f64) {
@@ -52,7 +56,7 @@ impl Add for Chord {
     /// create new chord with length and size from lhs and frequencies from both
     /// (thus the operation is not commutative)
     fn add(self, rhs: Self) -> Self::Output {
-        if rhs.is_new() {
+        if rhs.is_empty() {
             Self { ..self }
         } else {
             let mut frequencies = self.frequencies.clone();
