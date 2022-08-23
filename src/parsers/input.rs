@@ -90,9 +90,9 @@ impl InputParser {
         })
     }
     /// write a line to file
-    fn write_line(&mut self, line: &Line) {
-        self.wave.fold_with_line(line);
-        self.wr.write(self.wave.drain(line.offset())).unwrap();
+    fn write_line(&mut self, line: &Line) -> Result<(), String> {
+        self.wave.fold_with_line(line)?;
+        Ok(self.wr.write(self.wave.drain(line.offset())).unwrap())
     }
 }
 
@@ -117,7 +117,7 @@ impl InputParser {
                     // move self.rep to rep
                     let rep = std::mem::take(&mut self.rep);
                     // now there's no borrowing 2 values from self at tho same time
-                    rep.repeat(|line| self.write_line(line))?;
+                    rep.repeat(|line| Ok(self.write_line(line)?))?;
                     // move back
                     self.rep = rep;
                     // reset repeat
@@ -196,7 +196,7 @@ impl InputParser {
         if self.rep.on_rec() {
             self.rep.push(line)?;
         } else {
-            self.write_line(&line);
+            self.write_line(&line)?;
         }
         Ok(self.cap.update())
     }

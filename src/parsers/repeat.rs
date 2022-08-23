@@ -100,7 +100,7 @@ impl RepeatParser {
         }
     }
     /// repeat voltas and reset self
-    pub fn repeat(&self, mut write: impl FnMut(&Line)) -> Result<(), String> {
+    pub fn repeat(&self, mut write: impl FnMut(&Line) -> Result<(), String>) -> Result<(), String> {
         if self.voltas.len() > 2 {
             for &k in self.voltas.keys().filter(|&&k| 0 < k && k < !0) {
                 // write pre-volta volta post-volta
@@ -121,9 +121,10 @@ impl RepeatParser {
         self.current = 0;
     }
     /// write a volta
-    fn write(&self, v: usize, write: &mut impl FnMut(&Line)) -> Result<(), String> {
+    fn write(&self, v: usize, write: &mut impl FnMut(&Line) -> Result<(), String>) -> Result<(), String> {
         match self.voltas.get(&v) {
-            Some(volta) => Ok(volta.borrow().iter().for_each(|line| write(line))),
+            // didn't know that you can put a for loop inside Ok()
+            Some(volta) => Ok(for line in volta.borrow().iter() { write(line)?; }),
             None => not_found(v, "write line"),
         }
     }
