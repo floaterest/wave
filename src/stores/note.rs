@@ -86,9 +86,9 @@ impl Line {
     pub fn new() -> Self {
         Self { chords: Vec::new() }
     }
-    /// defined as the minimum length of each chord
+    /// defined as the minimum size of each chord
     pub fn offset(&self) -> usize {
-        self.chords.iter().map(|ch| ch.length).min().unwrap()
+        self.chords.iter().map(|ch| ch.size).min().unwrap()
     }
     /// defined as the maximum size of each chord
     pub fn size(&self) -> usize {
