@@ -4,13 +4,11 @@ use std::rc::Rc;
 
 use crate::stores::note::Line;
 
-// use crate::stores::repeat::Repeat;
-
 const REPEAT: u8 = b'|';
 const DELIM: u8 = b':';
 const SEP: u8 = b'.';
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum Rep {
     /// |:
     RepeatStart,
@@ -42,7 +40,6 @@ fn not_found(v: usize, action: &str) -> Result<(), String> {
 
 fn parse_volta_start(bytes: &[u8]) -> Option<Vec<usize>> {
     match bytes.strip_prefix(&[REPEAT]) {
-        // Some(voltas) => Some(voltas.iter().filter(|&b| b != &SEP).collect()),
         Some(voltas) => Some(voltas.iter().filter_map(
             |&b| if b == SEP { None } else { Some(b as usize) }
         ).collect()),
@@ -56,6 +53,8 @@ pub struct RepeatParser {
     voltas: BTreeMap<usize, Rc<RefCell<Vec<Line>>>>,
     /// indices of one of the voltas to record
     current: usize,
+    /// should trigger repeat on RepeatEnd
+    on_rep_end: bool,
 }
 
 impl RepeatParser {
@@ -63,6 +62,7 @@ impl RepeatParser {
         Self {
             voltas: BTreeMap::new(),
             current: 0,
+            on_rep_end: true,
         }
     }
     /// parse token as repeat
@@ -83,6 +83,22 @@ impl RepeatParser {
     /// return if Repeat is currently recording
     pub fn on_rec(&self) -> bool {
         !self.voltas.is_empty()
+    }
+    /// return the Rep token that will trigger a repeat
+    pub fn get_trigger(&self) -> Rep {
+        if self.on_rep_end {
+            Rep::RepeatEnd
+        } else {
+            Rep::VoltaEnd
+        }
+    }
+    /// change the Rep token that will trigger a repeat
+    pub fn set_trigger(&mut self, trigger: Rep) -> Result<(), String> {
+        match trigger {
+            Rep::VoltaEnd => Ok(self.on_rep_end = false),
+            Rep::RepeatEnd => Ok(self.on_rep_end = true),
+            _ => Err(format!("invalid trigger token, expected VoltaEnd | RepeatEnd, found {:?}", trigger)),
+        }
     }
     /// init new voltas to store if empty
     pub fn start(&mut self, indices: &[usize]) {
@@ -122,6 +138,7 @@ impl RepeatParser {
     pub fn clear(&mut self) {
         self.voltas.clear();
         self.current = 0;
+        self.on_rep_end = true;
     }
     /// write a volta
     fn write(&self, v: usize, write: &mut impl FnMut(&Line) -> Result<(), String>) -> Result<(), String> {
