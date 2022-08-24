@@ -54,6 +54,7 @@ impl CaptureParser {
             to_clear: HashSet::new(),
         }
     }
+    /// push new key to capture upon update
     pub fn will_capture(&mut self, key: Rc<String>) {
         self.to_cap.insert(key);
     }
@@ -64,13 +65,14 @@ impl CaptureParser {
             |cap| captures.entry(cap).or_insert(VecDeque::new()).push_back(Rc::clone(&chord))
         );
     }
-    /// update the captures according to to_do
+    /// update the captures
     pub fn update(&mut self) {
         let captures = &mut self.captures;
+
         let pop = &self.to_pop;
         let shift = &self.to_shift;
         let clear = &self.to_clear;
-        // pop \ (shift U clear)
+        // pop \ (shift ∪ clear)
         pop.difference(&shift).filter(
             |&k| !clear.contains(k)
         ).for_each(|k| { captures.get_mut(k).unwrap().pop_front(); });
@@ -78,11 +80,11 @@ impl CaptureParser {
         shift.difference(&clear).for_each(
             |k| captures.get_mut(k).unwrap().rotate_left(1)
         );
-        // kill the anyone that deserves to die
+        // kill the captures that were sentenced to death
         clear.iter().for_each(|k| { captures.remove(k); });
-        // reset everything like nothing happened
-        self.to_shift.clear();
+        // clear everything like nothing happened
         self.to_pop.clear();
+        self.to_shift.clear();
         self.to_clear.clear();
     }
     /// try parse token as capture
