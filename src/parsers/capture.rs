@@ -6,8 +6,9 @@ use crate::stores::note::Chord;
 const CAP: u8 = b'(';
 const POP: u8 = b'<';
 const FRONT: u8 = b'[';
-const SHIFT: u8 = b'|';
 const CLEAR: u8 = b'{';
+const ROTATE: u8 = b'|';
+
 const RAISE: [u8; 2] = [b'^', b'8'];
 const LOWER: [u8; 2] = [b'_', b'8'];
 
@@ -21,7 +22,7 @@ pub enum Cap {
 
 /// check if a line should be parsed as capture based on the first byte
 pub fn should_be_cap(byte: u8) -> bool {
-    matches!(byte, CAP | POP | FRONT | SHIFT | CLEAR)
+    matches!(byte, CAP | POP | FRONT | CLEAR | ROTATE)
 }
 
 fn parse_scale(bytes: &[u8]) -> Option<f64> {
@@ -40,8 +41,8 @@ pub struct CaptureParser {
     /// things to do upon update
     to_cap: HashSet<Rc<String>>,
     to_pop: HashSet<Rc<String>>,
-    to_shift: HashSet<Rc<String>>,
     to_clear: HashSet<Rc<String>>,
+    to_rotate: HashSet<Rc<String>>,
 }
 
 impl CaptureParser {
@@ -50,8 +51,8 @@ impl CaptureParser {
             captures: HashMap::new(),
             to_cap: HashSet::new(),
             to_pop: HashSet::new(),
-            to_shift: HashSet::new(),
             to_clear: HashSet::new(),
+            to_rotate: HashSet::new(),
         }
     }
     /// push new key to capture upon update
@@ -70,22 +71,22 @@ impl CaptureParser {
         let captures = &mut self.captures;
 
         let pop = &self.to_pop;
-        let shift = &self.to_shift;
         let clear = &self.to_clear;
+        let rotate = &self.to_rotate;
         // pop \ (shift ∪ clear)
-        pop.difference(&shift).filter(
+        pop.difference(&rotate).filter(
             |&k| !clear.contains(k)
         ).for_each(|k| { captures.get_mut(k).unwrap().pop_front(); });
         // shift \ clear
-        shift.difference(&clear).for_each(
+        rotate.difference(&clear).for_each(
             |k| captures.get_mut(k).unwrap().rotate_left(1)
         );
         // kill the captures that were sentenced to death
         clear.iter().for_each(|k| { captures.remove(k); });
         // clear everything like nothing happened
         self.to_pop.clear();
-        self.to_shift.clear();
         self.to_clear.clear();
+        self.to_rotate.clear();
     }
     /// try parse token as capture
     pub fn try_parse(&mut self, token: &str) -> Result<Option<Cap>, String> {
@@ -104,7 +105,7 @@ impl CaptureParser {
         };
         match prefix {
             CAP => Ok(Cap::Cap(key)),
-            POP | FRONT | SHIFT | CLEAR => Ok(self.process_front(
+            POP | FRONT | CLEAR | ROTATE => Ok(self.process_front(
                 key, prefix,
                 parse_scale(token.as_bytes()),
             )?),
@@ -117,8 +118,8 @@ impl CaptureParser {
         let to = match prefix {
             CAP => Some(&mut self.to_cap),
             POP => Some(&mut self.to_pop),
-            SHIFT => Some(&mut self.to_shift),
             CLEAR => Some(&mut self.to_clear),
+            ROTATE => Some(&mut self.to_rotate),
             _ => None,
         };
         if let Some(to) = to {
