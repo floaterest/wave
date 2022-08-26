@@ -45,10 +45,10 @@ impl Waveform {
             }
         } else {
             let period = freq * PI * 2.0 / self.fps as f64;
-            let a = i16::MAX as f64 / self.max.max(max) as f64;
+            let amp = i16::MAX as f64 / self.max.max(max) as f64;
             // add new wave to buffer
             Ok((0..len).map(
-                |i| a * sine(i as f64, len as f64, period, &sinusoid)
+                |i| amp * sine(i as f64, len as f64, period, &sinusoid)
             ).enumerate().for_each(|(i, y)| self.buffer[i] += y as i16))
         }
     }
