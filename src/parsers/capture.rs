@@ -6,22 +6,23 @@ use crate::stores::note::Chord;
 const CAP: u8 = b'(';
 const POP: u8 = b'<';
 const FRONT: u8 = b'[';
-const SHIFT: u8 = b'|';
 const CLEAR: u8 = b'{';
+const ROTATE: u8 = b'|';
+
 const RAISE: [u8; 2] = [b'^', b'8'];
 const LOWER: [u8; 2] = [b'_', b'8'];
 
 #[derive(PartialEq)]
 pub enum Cap {
     /// (key)
-    Capture(Rc<String>),
+    Cap(Rc<String>),
     /// (chord from capture)
     Front(Rc<Chord>),
 }
 
 /// check if a line should be parsed as capture based on the first byte
 pub fn should_be_cap(byte: u8) -> bool {
-    matches!(byte, CAP | POP | FRONT | SHIFT | CLEAR)
+    matches!(byte, CAP | POP | FRONT | CLEAR | ROTATE)
 }
 
 fn parse_scale(bytes: &[u8]) -> Option<f64> {
@@ -40,8 +41,8 @@ pub struct CaptureParser {
     /// things to do upon update
     to_cap: HashSet<Rc<String>>,
     to_pop: HashSet<Rc<String>>,
-    to_shift: HashSet<Rc<String>>,
     to_clear: HashSet<Rc<String>>,
+    to_rotate: HashSet<Rc<String>>,
 }
 
 impl CaptureParser {
@@ -50,10 +51,11 @@ impl CaptureParser {
             captures: HashMap::new(),
             to_cap: HashSet::new(),
             to_pop: HashSet::new(),
-            to_shift: HashSet::new(),
             to_clear: HashSet::new(),
+            to_rotate: HashSet::new(),
         }
     }
+    /// push new key to capture upon update
     pub fn will_capture(&mut self, key: Rc<String>) {
         self.to_cap.insert(key);
     }
@@ -64,36 +66,37 @@ impl CaptureParser {
             |cap| captures.entry(cap).or_insert(VecDeque::new()).push_back(Rc::clone(&chord))
         );
     }
-    /// update the captures according to to_do
+    /// update the captures
     pub fn update(&mut self) {
         let captures = &mut self.captures;
+
         let pop = &self.to_pop;
-        let shift = &self.to_shift;
         let clear = &self.to_clear;
-        // pop \ (shift U clear)
-        pop.difference(&shift).filter(
+        let rotate = &self.to_rotate;
+        // pop \ (shift ∪ clear)
+        pop.difference(&rotate).filter(
             |&k| !clear.contains(k)
         ).for_each(|k| { captures.get_mut(k).unwrap().pop_front(); });
         // shift \ clear
-        shift.difference(&clear).for_each(
+        rotate.difference(&clear).for_each(
             |k| captures.get_mut(k).unwrap().rotate_left(1)
         );
-        // kill the anyone that deserves to die
+        // kill the captures that were sentenced to death
         clear.iter().for_each(|k| { captures.remove(k); });
-        // reset everything like nothing happened
-        self.to_shift.clear();
+        // clear everything like nothing happened
         self.to_pop.clear();
         self.to_clear.clear();
+        self.to_rotate.clear();
     }
-    /// parse token as capture
-    pub fn parse(&mut self, token: &str) -> Option<Cap> {
+    /// try parse token as capture
+    pub fn try_parse(&mut self, token: &str) -> Result<Option<Cap>, String> {
         match token.as_bytes()[0] {
-            b if should_be_cap(b) => Some(self.process(token, b)),
-            _ => None,
+            b if should_be_cap(b) => Ok(Some(self.process(token, b)?)),
+            _ => Ok(None),
         }
     }
     /// process the token as capture and return what operation was done
-    fn process(&mut self, token: &str, prefix: u8) -> Cap {
+    fn process(&mut self, token: &str, prefix: u8) -> Result<Cap, String> {
         let key = token.chars().filter(|ch| ch.is_alphabetic()).collect();
         // use the key from captures if possible (avoid dup memory)
         let key = match self.captures.get_key_value(&key) {
@@ -101,33 +104,34 @@ impl CaptureParser {
             None => Rc::new(key),
         };
         match prefix {
-            CAP => Cap::Capture(key),
-            POP | FRONT | SHIFT | CLEAR => {
-                self.process_front(key, prefix, parse_scale(token.as_bytes()))
-            }
-            _ => panic!("unknown capture instruction: {}", token),
+            CAP => Ok(Cap::Cap(key)),
+            POP | FRONT | CLEAR | ROTATE => Ok(self.process_front(
+                key, prefix,
+                parse_scale(token.as_bytes()),
+            )?),
+            _ => Err(format!("unknown capture instruction: {}", token)),
         }
     }
     /// process the token as pop/front/shift/clear
-    fn process_front(&mut self, key: Rc<String>, prefix: u8, scale: Option<f64>) -> Cap {
+    fn process_front(&mut self, key: Rc<String>, prefix: u8, scale: Option<f64>) -> Result<Cap, String> {
         // update schedule
         let to = match prefix {
             CAP => Some(&mut self.to_cap),
             POP => Some(&mut self.to_pop),
-            SHIFT => Some(&mut self.to_shift),
             CLEAR => Some(&mut self.to_clear),
+            ROTATE => Some(&mut self.to_rotate),
             _ => None,
         };
         if let Some(to) = to {
             to.insert(Rc::clone(&key));
         }
         // get front chord
-        let front = Rc::clone(self.captures.get(&key).unwrap_or_else(
-            || panic!("key {} not found while trying to access front", &key)
-        ).front().unwrap_or_else(
-            || panic!("captures with key {} is empty while trying to access front", &key)
-        ));
+        let front = Rc::clone(self.captures.get(&key).ok_or_else(
+            || format!("key {} not found while trying to access front", &key)
+        )?.front().ok_or_else(
+            || format!("captures with key {} is empty while trying to access front", &key)
+        )?);
         // if scale, make new rc
-        Cap::Front(if let Some(r) = scale { Rc::new(front.scale(r)) } else { front })
+        Ok(Cap::Front(if let Some(r) = scale { Rc::new(front.scale(r)) } else { front }))
     }
 }

@@ -4,13 +4,11 @@ use std::rc::Rc;
 
 use crate::stores::note::Line;
 
-// use crate::stores::repeat::Repeat;
-
 const REPEAT: u8 = b'|';
 const DELIM: u8 = b':';
 const SEP: u8 = b'.';
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum Rep {
     /// |:
     RepeatStart,
@@ -30,20 +28,20 @@ pub fn should_be_rep(token: &str) -> bool {
     )
 }
 
-/// panic because volta not found
-fn panic(v: usize, wanted: &str, action: &str) -> ! {
-    if v == !0 {
-        panic!("Volta No. MAX is not {} while trying to {}", wanted, action)
-    } else {
-        panic!("Volta No. {} is not {} while trying to {}", v, wanted, action)
-    }
+/// return volta not found error to be handled
+fn not_found(v: usize, action: &str) -> Result<(), String> {
+    let volta = match v {
+        0 => "pre-volta".to_string(),
+        v if v == !0 => "post-volta".to_string(),
+        _ => format!("volta no. {}", v),
+    };
+    Err(format!("{} is not found while trying to {}", volta, action))
 }
 
 fn parse_volta_start(bytes: &[u8]) -> Option<Vec<usize>> {
     match bytes.strip_prefix(&[REPEAT]) {
-        // Some(voltas) => Some(voltas.iter().filter(|&b| b != &SEP).collect()),
         Some(voltas) => Some(voltas.iter().filter_map(
-            |&b| if b == SEP { None } else { Some(b as usize) }
+            |&b| if b == SEP { None } else { Some((b - b'0') as usize) }
         ).collect()),
         None => None
     }
@@ -55,6 +53,8 @@ pub struct RepeatParser {
     voltas: BTreeMap<usize, Rc<RefCell<Vec<Line>>>>,
     /// indices of one of the voltas to record
     current: usize,
+    /// should trigger repeat on RepeatEnd
+    on_rep_end: bool,
 }
 
 impl RepeatParser {
@@ -62,23 +62,43 @@ impl RepeatParser {
         Self {
             voltas: BTreeMap::new(),
             current: 0,
+            on_rep_end: true,
         }
     }
-    pub fn parse(&self, token: &str) -> Rep {
+    /// parse token as repeat
+    pub fn parse(&self, token: &str) -> Result<Rep, String> {
         let bytes = token.as_bytes();
         match bytes {
-            &[REPEAT] => Rep::VoltaEnd,
-            &[DELIM, REPEAT] => Rep::RepeatEnd,
-            &[REPEAT, DELIM] => Rep::RepeatStart,
+            &[REPEAT] => Ok(Rep::VoltaEnd),
+            &[DELIM, REPEAT] => Ok(Rep::RepeatEnd),
+            &[REPEAT, DELIM] => Ok(Rep::RepeatStart),
             // parse as volta start or die
-            _ => Rep::VoltaStart(parse_volta_start(bytes).unwrap_or_else(
-                || panic!("Invalid token as repeat: {}", token)
-            ))
+            _ => if let Some(voltas) = parse_volta_start(bytes) {
+                Ok(Rep::VoltaStart(voltas))
+            } else {
+                Err(format!("invalid token as repeat: {}", token))
+            }
         }
     }
     /// return if Repeat is currently recording
     pub fn on_rec(&self) -> bool {
         !self.voltas.is_empty()
+    }
+    /// return the Rep token that will trigger a repeat
+    pub fn get_trigger(&self) -> Rep {
+        if self.on_rep_end {
+            Rep::RepeatEnd
+        } else {
+            Rep::VoltaEnd
+        }
+    }
+    /// change the Rep token that will trigger a repeat
+    pub fn set_trigger(&mut self, trigger: Rep) -> Result<(), String> {
+        match trigger {
+            Rep::VoltaEnd => Ok(self.on_rep_end = false),
+            Rep::RepeatEnd => Ok(self.on_rep_end = true),
+            _ => Err(format!("invalid trigger token, expected VoltaEnd | RepeatEnd, found {:?}", trigger)),
+        }
     }
     /// init new voltas to store if empty
     pub fn start(&mut self, indices: &[usize]) {
@@ -89,37 +109,43 @@ impl RepeatParser {
         self.current = indices[0];
     }
     /// add new line to current voltas
-    pub fn push(&mut self, line: Line) {
+    pub fn push(&mut self, line: Line) -> Result<(), String> {
+        if line.size() == 0 {
+            return Err(format!("attempt to push empty line"));
+        }
         match self.voltas.get(&self.current) {
-            Some(volta) => volta.borrow_mut().push(line),
-            None => panic(self.current, "initialised", "push"),
+            Some(volta) => Ok(volta.borrow_mut().push(line)),
+            None => not_found(self.current, "push new line"),
         }
     }
     /// repeat voltas and reset self
-    pub fn repeat(&self, mut write: impl FnMut(&Line)) {
+    pub fn repeat(&self, mut write: impl FnMut(&Line) -> Result<(), String>) -> Result<(), String> {
         if self.voltas.len() > 2 {
-            self.voltas.keys().filter(|&&k| 0 < k && k < !0).for_each(|&k| {
-                // pre-volta volta post-volta
-                self.write(0, &mut write);
-                self.write(k, &mut write);
-                self.write(!0, &mut write);
-            });
+            for &k in self.voltas.keys().filter(|&&k| 0 < k && k < !0) {
+                // write pre-volta volta post-volta
+                self.write(0, &mut write)?;
+                self.write(k, &mut write)?;
+                self.write(!0, &mut write)?;
+            }
         } else {
             // no voltas, only pre-volta
-            self.write(0, &mut write);
-            self.write(0, &mut write);
+            self.write(0, &mut write)?;
+            self.write(0, &mut write)?;
         }
+        Ok(())
     }
     /// free data
     pub fn clear(&mut self) {
         self.voltas.clear();
         self.current = 0;
+        self.on_rep_end = true;
     }
     /// write a volta
-    fn write(&self, v: usize, write: &mut impl FnMut(&Line)) {
+    fn write(&self, v: usize, write: &mut impl FnMut(&Line) -> Result<(), String>) -> Result<(), String> {
         match self.voltas.get(&v) {
-            Some(volta) => volta.borrow().iter().for_each(|line| write(line)),
-            None => panic(v, "found", "write"),
+            // didn't know that you can put a for loop inside Ok()
+            Some(volta) => Ok(for line in volta.borrow().iter() { write(line)?; }),
+            None => not_found(v, "write line"),
         }
     }
 }

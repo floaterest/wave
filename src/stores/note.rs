@@ -30,9 +30,19 @@ impl Chord {
             frequencies: self.frequencies.iter().map(|&f| f * scale).collect(),
         }
     }
+    /// returns `true` if `self` can be replaced by chord
+    pub fn can_be_replaced_by(&self, chord: &Chord) -> bool {
+        self.is_empty()
+            && (self.size == chord.size && self.length == chord.length)
+            || (self.size == 0 && self.length == 0)
+    }
     /// returns `true` if `self` has no frequencies
     pub fn is_empty(&self) -> bool {
         self.frequencies.is_empty()
+    }
+    /// returns number of notes `self` has
+    pub fn count(&self) -> usize {
+        self.frequencies.len()
     }
     /// push a new frequency to chord
     pub fn push(&mut self, frequency: f64) {
@@ -40,10 +50,8 @@ impl Chord {
         // f64 does not implement Eq ffs
         // assert!(self.frequencies.insert(frequency), "attempt to insert existing frequency to a chord: {}", frequency);
     }
-    /// extend a chord to self
+    /// extend the frequencies in rhs to lhs
     pub fn extend(&mut self, rhs: &Rc<Chord>) {
-        assert_eq!(self.length, rhs.length, "attempt to extend a chord without equal length");
-        assert_eq!(self.size, rhs.size, "attempt to extend a chord without equal size");
         self.frequencies.extend(rhs.frequencies.iter());
     }
 }
@@ -51,12 +59,12 @@ impl Chord {
 impl Add for Chord {
     type Output = Self;
 
+    /// create new chord with length and size from lhs and frequencies from both
+    /// (thus the operation is not commutative)
     fn add(self, rhs: Self) -> Self::Output {
         if rhs.is_empty() {
             Self { ..self }
         } else {
-            assert_eq!(self.length, rhs.length, "attempt to add two chords without equal length");
-            assert_eq!(self.size, rhs.size, "attempt to add two chords without equal size");
             let mut frequencies = self.frequencies.clone();
             frequencies.extend(&rhs.frequencies);
             Self { frequencies, ..self }
@@ -82,9 +90,9 @@ impl Line {
     pub fn new() -> Self {
         Self { chords: Vec::new() }
     }
-    /// defined as the minimum length of each chord
+    /// defined as the minimum size of each chord
     pub fn offset(&self) -> usize {
-        self.chords.iter().map(|ch| ch.length).min().unwrap()
+        self.chords.iter().map(|ch| ch.size).min().unwrap()
     }
     /// defined as the maximum size of each chord
     pub fn size(&self) -> usize {
