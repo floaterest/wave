@@ -53,11 +53,11 @@ impl InputParser {
     pub fn write<I: Iterator<Item=String>>(&mut self, lines: I) -> Result<()> {
         self.wr.start(self.wave.fps)?;
         // not using for loops here because CLion won't give me autocomplete
-        lines.for_each(|line| self.parse_line(line.trim()));
-        // lines.enumerate().for_each(|(i, line)| {
-        //     println!("{}", i + 1);
-        //     self.parse_line(line.trim())
-        // });
+        // lines.for_each(|line| self.parse_line(line.trim()));
+        lines.enumerate().for_each(|(i, line)| {
+            println!("{}", i + 1);
+            self.parse_line(line.trim())
+        });
         Ok(self.wr.finish()?)
     }
     /// parse a line from input
@@ -70,7 +70,7 @@ impl InputParser {
                 match tokens.peek() {
                     Some(&token) if should_be_rep(token) => self.parse_repeat(tokens),
                     Some(&token) if should_be_chords(token) => self.parse_chords(tokens),
-                    _ => { /* token is comment */ },
+                    _ => { /* token is comment */ }
                 }
             }
         }
@@ -120,8 +120,8 @@ impl InputParser {
                 self.rep = rep;
                 // reset repeat
                 self.rep.clear();
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
     /// get specific type of repeat token
@@ -134,7 +134,7 @@ impl InputParser {
 impl InputParser {
     /// parse a line of input as chords (and captures)
     fn parse_chords(&mut self, mut tokens: Peekable<SplitAsciiWhitespace>) {
-        let mut chord = Chord::new();
+        let (mut chord, mut rc) = (Chord::new(), Rc::new(Chord::new()));
         let mut line = Line::new();
         // current token type
         let mut cty = self.chord_type(tokens.next().unwrap());
@@ -145,8 +145,40 @@ impl InputParser {
                 Some(token) => self.chord_type(token),
                 None => Token::None,
             };
-            self.match_chord_type(&cty, &mut chord);
-            self.match_chord_types(&cty, &nty, &mut chord, &mut line);
+            match &cty {
+                // update set of keys to capture
+                Token::Capture(Cap::Capture(key)) => self.cap.will_capture(Rc::clone(&key)),
+                // update current chord's length & size
+                Token::Note(Note::Length(length, staccato)) => {
+                    let length = self.wave.frame_count(*length);
+                    chord.length = length;
+                    chord.size = if *staccato { length * 2 } else { length };
+                }
+                // extend current chord from captures and update to_shift/to_clear
+                Token::Capture(Cap::Front(captured)) => if chord.is_empty() && rc.is_empty() {
+                    rc = Rc::clone(captured)
+                } else {
+                    chord.extend(captured)
+                },
+                // push new frequency to current chord
+                Token::Note(Note::Frequency(frequency)) => chord.push(*frequency),
+                _ => {}
+            }
+            match (&cty, &nty) {
+                (Token::Capture(Cap::Capture(_)), Token::Note(Note::Length(_, _))) => {}
+                (Token::Note(_) | Token::Capture(Cap::Front(_)), Token::Note(Note::Frequency(_))) => {}
+                (Token::Note(Note::Length(_, _)) | Token::Capture(_), Token::Capture(Cap::Front(_))) => {}
+                // (Freq, Cap | Len | Front | None)
+                // (Front, Cap | Len | None)
+                // todo panic for invalid token sequences LL LC LN CF CN (CC?)
+                _ => {
+                    let new = if chord.is_empty() { rc } else { Rc::new(chord + (*rc).clone()) };
+                    self.cap.capture(Rc::clone(&new));
+                    line.push(new);
+                    chord = Chord::new();
+                    rc = Rc::new(Chord::new());
+                }
+            }
             cty = nty
         }
         if self.rep.on_rec() {
@@ -155,50 +187,6 @@ impl InputParser {
             self.write_line(&line);
         }
         self.cap.update();
-    }
-    /// do stuff based on current chord token
-    fn match_chord_type(&mut self, cty: &Token, chord: &mut Chord) {
-        match cty {
-            // update set of keys to capture
-            Token::Capture(Cap::Capture(key)) => {
-                self.cap.will_capture(Rc::new(key.clone()))
-            },
-            // update current chord's length & size
-            Token::Note(Note::Length(length, staccato)) => {
-                let length = self.wave.frame_count(*length);
-                chord.length = length;
-                chord.size = if *staccato { length * 2 } else { length };
-            }
-            // extend current chord from captures and update to_shift/to_clear
-            Token::Capture(Cap::Get(key, opt, scale)) => {
-                let captured = self.cap.will_shift(Rc::new(key.clone()), opt);
-                chord.extend(if let Some(r) = scale {
-                    Rc::new(captured.scale(*r))
-                } else {
-                    Rc::clone(&captured)
-                });
-            },
-            // push new frequency to current chord
-            Token::Note(Note::Frequency(frequency)) => chord.push(*frequency),
-            _ => {},
-        }
-    }
-    /// do stuff based on what chord token comes next
-    fn match_chord_types(&mut self, cty: &Token, nty: &Token, chord: &mut Chord, line: &mut Line) {
-        match (cty, nty) {
-            (Token::Note(Note::Frequency(_)), Token::Note(Note::Frequency(_))) => (),
-            (Token::Capture(Cap::Get(..)), Token::Capture(Cap::Get(..)) | Token::Note(Note::Frequency(_))) => (),
-            // (Frequency, Capture) | (Frequency, Length) | (Frequency, Shift)
-            // (Shift, Capture) | (Shift | Length)
-            // (_ , None)
-            (Token::Note(Note::Frequency(_)) | Token::Capture(Cap::Get(..)), _) | (_, Token::None) => {
-                let rc = Rc::new((*chord).clone());
-                self.cap.capture(&rc);
-                (*line).push(rc);
-                (*chord).clear();
-            }
-            _ => (),
-        }
     }
     /// get specific type of chord token
     fn chord_type(&mut self, token: &str) -> Token {
